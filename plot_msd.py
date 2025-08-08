@@ -9,11 +9,9 @@ import platform
 # ◆◆◆ 設定箇所 ◆◆◆
 
 # 分析対象のファイル名
-FILENAME = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/boids_trajectory.csv'
+FILENAME = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position.csv'
 
-# グラフの種類をここで切り替えます
-# True:  両対数グラフ (傾きで拡散の種類を分析するのに適しています)
-# False: 片対数グラフ (縦軸のみ対数。移動距離の大きさの変化を見やすいです)
+# グラフの種類
 USE_LOGLOG_PLOT = True
 
 # 【文字化け対策】日本語フォントを設定
@@ -26,122 +24,132 @@ try:
         plt.rcParams['font.family'] = 'IPAexGothic'
 except Exception as e:
     print(f"日本語フォントの設定中にエラーが発生しました: {e}")
-    print("グラフの日本語が文字化けする可能性があります。")
 
-
-def calculate_boids_msd(filename, max_lag_ratio=0.5):
+def convert_wide_to_long(df_wide):
     """
-    Boidsの軌跡データを読み込み、各boidのMSD（Mean Squared Displacement）を計算する。
+    ワイド形式のDataFrameをロング形式に変換する（メモリ上でのみ処理）。
+    """
+    df_temp = df_wide.copy() # 元のDataFrameを汚染しないようにコピー
+    df_temp.rename(columns={'position': 'frame'}, inplace=True)
+    
+    column_mapping = {col: f"{col[0]}_{col[1:]}" for col in df_temp.columns if col not in ['frame']}
+    df_temp.rename(columns=column_mapping, inplace=True)
+    
+    df_long = pd.wide_to_long(
+        df_temp,
+        stubnames=['x', 'y'],
+        i='frame',
+        j='id',
+        sep='_',
+        suffix='\\d+'
+    ).reset_index()
+    
+    df_long.rename(columns={'x': 'position_x', 'y': 'position_y'}, inplace=True)
+    return df_long
+
+
+def calculate_msd_from_wide_format(filename, max_lag_ratio=0.5):
+    """
+    ワイド形式の軌跡データを読み込み、変換してからMSDを計算する。
+    元のファイルは変更しない。
     """
     try:
-        df = pd.read_csv(filename)
+        df_wide = pd.read_csv(filename)
     except FileNotFoundError:
         print(f"エラー: ファイルが見つかりません - {filename}")
         return None
-    # 'id' 列が存在するか確認
-    if 'id' not in df.columns:
-        print(f"エラー: ファイル '{filename}' に 'id' 列が見つかりません。")
-        return None
 
-
+    # メモリ上でデータ形式の変換処理を呼び出す
+    df = convert_wide_to_long(df_wide)
+    
+    results = {}
     boid_ids = df['id'].unique()
-    msd_results = {}
+    n_frames = df['frame'].max()
+    max_lag = int(n_frames * max_lag_ratio)
+    if max_lag == 0: max_lag = 1
 
     for boid_id in boid_ids:
-        boid_df = df[df['id'] == boid_id].sort_values('frame')
-        positions = boid_df[['position_x', 'position_y']].values
-        n_steps = len(positions)
+        boid_df = df[df['id'] == boid_id].sort_values(by='frame').set_index('frame')
+        all_frames = pd.DataFrame(index=np.arange(boid_df.index.min(), boid_df.index.max() + 1))
+        boid_df = boid_df.reindex(all_frames.index).interpolate(method='linear')
+        coords = boid_df[['position_x', 'position_y']].to_numpy()
         
-        max_lag = int(n_steps * max_lag_ratio)
-        if max_lag <= 1:
-            continue
+        msd = []
+        lag_times = list(range(1, max_lag))
 
-        lags = np.arange(1, max_lag)
-        msds = []
-
-        for lag in lags:
-            diff = positions[lag:] - positions[:-lag]
+        for lag in lag_times:
+            diff = coords[lag:] - coords[:-lag]
             squared_disp = np.sum(diff**2, axis=1)
-            msds.append(np.mean(squared_disp))
+            if len(squared_disp) > 0:
+                msd.append(np.mean(squared_disp))
+            else:
+                msd.append(np.nan)
         
-        msd_results[boid_id] = (lags, np.array(msds))
+        valid_lags = [lag for i, lag in enumerate(lag_times) if not np.isnan(msd[i])]
+        valid_msd = [val for val in msd if not np.isnan(val)]
+        
+        if valid_lags:
+             results[boid_id] = {'lags': valid_lags, 'msd': valid_msd}
 
-    return msd_results
+    return results
 
-# --- メインの描画処理 ---
 
-# boidごとのMSDデータを計算
-all_boids_msd = calculate_boids_msd(FILENAME)
+def plot_msd(msd_results, source_filename):
+    """
+    計算されたMSDをプロットする。
+    """
+    if not msd_results:
+        print("プロットするデータがありません。")
+        return
 
-if all_boids_msd and len(all_boids_msd) > 0:
-    # --- START MODIFICATION ---
-    # グラフをグリッド表示するための設定
-    n_boids = len(all_boids_msd)
-    n_cols = 5  # 1行あたりのグラフの数
-    # 必要な行数を計算 (例: 12個のboidなら 12 / 5 = 2.4 -> 3行)
-    n_rows = (n_boids + n_cols - 1) // n_cols
-
-    # グリッド状の描画領域を作成 (figsizeで全体のサイズを調整)
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols * 4, n_rows * 3.5))
+    boid_ids = list(msd_results.keys())
+    n_boids = len(boid_ids)
     
-    # axesが常に2次元配列になるように調整 (boidが5個以下の場合に対応)
-    if n_rows == 1:
-        axes = np.array([axes])
-    if n_cols == 1:
-        axes = axes.reshape(-1, 1)
-
-    # 描画領域を1次元化してループしやすくする
+    n_cols = 3
+    n_rows = (n_boids + n_cols - 1) // n_cols
+    
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows), constrained_layout=True)
     axes_flat = axes.flatten()
 
-    # 各boidのデータをそれぞれの描画領域にプロット
-    for i, (boid_id, (lag_times, msd_values)) in enumerate(all_boids_msd.items()):
-        ax = axes_flat[i]  # i番目の描画領域を選択
+    fig.suptitle(f'MSD Plot ({ "Log-Log" if USE_LOGLOG_PLOT else "Semi-Log" })', fontsize=16)
 
-        if lag_times is not None and msd_values is not None and len(lag_times) > 0:
-            # グラフの種類に応じてプロット
+    for i, boid_id in enumerate(boid_ids):
+        ax = axes_flat[i]
+        result = msd_results.get(boid_id)
+        if not result: continue
+
+        lag_times = result['lags']
+        msd_values = result['msd']
+
+        if lag_times:
             if USE_LOGLOG_PLOT:
-                ax.loglog(lag_times, msd_values, 'o-', markersize=3, alpha=0.8, linewidth=1.5)
+                ax.loglog(lag_times, msd_values, 'o-', markersize=3)
             else:
-                ax.semilogy(lag_times, msd_values, 'o-', markersize=3, alpha=0.8, linewidth=1.5)
+                ax.semilogy(lag_times, msd_values, 'o-', markersize=3)
 
-            # 両対数グラフの場合のみ、参照線を描画
             if USE_LOGLOG_PLOT and len(lag_times) > 1 and len(msd_values) > 1:
-                # 参照線1: 傾き1 (通常拡散)
-                line1 = msd_values[1] / lag_times[1] * lag_times
-                ax.plot(lag_times, line1, 'r--', alpha=0.7, label='傾き 1')
-                # 参照線2: 傾き2 (バリスティックな動き)
-                line2 = msd_values[1] / (lag_times[1]**2) * (lag_times**2)
-                ax.plot(lag_times, line2, 'b--', alpha=0.7, label='傾き 2')
+                line1 = msd_values[1] / lag_times[1] * np.array(lag_times)
+                ax.plot(lag_times, line1, 'r--', alpha=0.7, label='Slope 1')
+                line2 = msd_values[1] / (lag_times[1]**2) * (np.array(lag_times)**2)
+                ax.plot(lag_times, line2, 'b--', alpha=0.7, label='Slope 2')
                 ax.legend(fontsize=8)
         
-        # 各グラフの体裁を設定
-        ax.set_title(f'Boid ID: {boid_id}', fontsize=12)
-        ax.set_xlabel('ラグタイム τ (frame)', fontsize=10)
+        ax.set_title(f'Individual ID: {boid_id}', fontsize=12)
+        ax.set_xlabel('Lag Time τ (frame)', fontsize=10)
         ax.set_ylabel('MSD(τ)', fontsize=10)
         ax.grid(True, which="both", ls="--")
 
-    # boidの数に応じて余った描画領域を非表示にする
     for i in range(n_boids, len(axes_flat)):
         axes_flat[i].axis('off')
 
-    # 全体のタイトルを設定
-    if USE_LOGLOG_PLOT:
-        fig.suptitle('Boidごとの平均二乗変位 (両対数グラフ)', fontsize=16)
-    else:
-        fig.suptitle('Boidごとの平均二乗変位 (片対数グラフ)', fontsize=16)
-
-    # グラフが重ならないようにレイアウトを自動調整
-    plt.tight_layout(rect=[0, 0, 1, 0.96]) # suptitleとの重なりを避ける
-
-    # グラフをファイルに保存
-    # output_filename = 'boids_msd_plot_grid.png'
+    plt.show()
+        
+    # output_filename = "msd_plot_from_c00001.png"
     # plt.savefig(output_filename, dpi=300)
     # print(f"グラフを '{output_filename}' として保存しました。")
 
-    # グラフを表示
-    plt.show()
 
-else:
-    print("描画するデータが見つかりませんでした。")
-
-# --- END MODIFICATION ---
+if __name__ == '__main__':
+    msd_data = calculate_msd_from_wide_format(FILENAME)
+    if msd_data:
+        plot_msd(msd_data, FILENAME)
