@@ -51,20 +51,39 @@ def plot_speed_over_time(input_filename, output_filename=None):
     # 図全体のタイトル
     fig.suptitle('Speed over Time (individuals)', fontsize=16)
 
-    # 各個体のグラフをプロット
+    # 最初のグラフ(axes_flat[0])に、全個体の速さを重ねてプロット
+    ax_overlay = axes_flat[0]
+    ax_overlay.set_title('All Individuals')
+    ax_overlay.set_xlabel('Frame')
+    ax_overlay.set_ylabel('Speed')
+    ax_overlay.grid(True, linestyle='--', alpha=0.6)
+
+    # ループして、同じaxに色分けしてプロット
+    for i_id in individual_ids:
+        speed_col_name = f'speed{i_id}'
+        ax_overlay.plot(df['position'], df[speed_col_name], linewidth=0.8, label=f'ID: {i_id}')
+
+    # 個体数が多すぎない場合のみ凡例を表示
+    if len(individual_ids) <= 10:
+        ax_overlay.legend(fontsize='small')
+
+    # 2番目以降のグラフに個別の速さをプロット
     for i, i_id in enumerate(individual_ids):
-        ax = axes_flat[i]
+        # プロットする位置をi+1にずらす
+        ax = axes_flat[i + 1] 
+        
         speed_col_name = f'speed{i_id}'
         
         ax.plot(df['position'], df[speed_col_name], label=f'Speed of {i_id}')
-        
-        ax.set_title(f'個体 (Individual ID): {i_id}')
-        ax.set_xlabel('時間 (Frame)')
-        ax.set_ylabel('速さ (Speed)')
+
+        ax.set_title(f'Individual ID: {i_id}')
+        ax.set_xlabel('Frame')
+        ax.set_ylabel('Speed')
         ax.grid(True, linestyle='--', alpha=0.6)
 
     # 余った描画領域を非表示にする
-    for i in range(n_individuals, len(axes_flat)):
+    # ループの開始を n_individuals + 1に修正
+    for i in range(n_individuals + 1, len(axes_flat)):
         axes_flat[i].axis('off')
 
     # グラフの表示(デバッグ用)
@@ -81,6 +100,7 @@ def plot_speed_over_time(input_filename, output_filename=None):
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
     INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position-velocity.csv'
+    # INPUT_CSV = 'C:\Users\13sou\OneDrive - Hiroshima City University\2025\UMATracker\datas\c00001(edit_2)-position-velocity.csv'
     # OUTPUT_PNG = 'speed_over_time.png'
 
     plot_speed_over_time(INPUT_CSV)
