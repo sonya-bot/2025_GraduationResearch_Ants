@@ -61,7 +61,7 @@ def plot_histogram_dashboard(input_filename):
         labels_list.append(f'ID_ {i_id}')
 
     # 積み上げヒストグラムを作成
-    ax_summary.hist(speed_data_list, bins='auto', stacked=True, label=labels_list,log=True)
+    ax_summary.hist(speed_data_list, bins=np.linspace(0, 40, 100), stacked=True, label=labels_list, log=True)
     # ax_summary.set_yscale('log')
 
     ax_summary.set_title('All_Individuals', fontsize=14)
