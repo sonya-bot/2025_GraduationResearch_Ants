@@ -1,36 +1,50 @@
+# -*- coding: utf-8 -*-
+
 import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.pyplot as plt
 import platform
+import calculate_thresholds as calc # 閾値計算用のモジュールをインポート
 
-# 【文字化け対策】日本語フォントを設定
-try:
-    if platform.system() == 'Windows':
-        plt.rcParams['font.family'] = 'Meiryo'
-    elif platform.system() == 'Darwin': # macOS
-        plt.rcParams['font.family'] = 'Hiragino Sans'
-    else: # Linux
-        plt.rcParams['font.family'] = 'IPAexGothic'
-except Exception as e:
-    print(f"日本語フォントの設定中にエラーが発生しました: {e}")
-
-def plot_speed_over_time(input_filename, output_filename=None):
-    """
-    速度・速さ情報ファイルから、各個体の速さの時間変化をプロットする。
-
-    Args:
-        input_filename (str): 入力ファイル名 (c00001_velocity_and_speed.csv)
-        output_filename (str): 出力するグラフのファイル名
-    """
+def plot_speed_over_time(input_filename, key_for_threshold):
+    # データの読み込み
     try:
         df = pd.read_csv(input_filename)
         print(f"'{input_filename}'を正常に読み込みました。")
     except FileNotFoundError:
         print(f"エラー: ファイルが見つかりません - {input_filename}")
         return
-        
-    # 'speed'を含む列を探して個体IDを特定する
-    speed_cols = [col for col in df.columns if 'speed' in col]
+
+    
+    # 速度データの列を特定
+    speed_cols = [col for col in df.columns if col.startswith('speed_')]
+    if not speed_cols:
+        print("速度データの列が見つかりません。")
+        return
+    
+    # 速度データ列の形(str)を数値(float)に変換
+    for col in speed_cols:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+        df[col].fillna(0, inplace=True)
+    print("速度データ列を数値に変換しました。")
+
+    # 閾値データの修得(calculate_thresholds.pyからインポート)
+    threshold_values, _ = calc.get_threshold_values(INPUT_CSV)
+    if threshold_values is None:
+        print("閾値の計算に失敗したため、プログラムを終了します。")
+        return
+    else:
+        if key_for_threshold is not None:
+            selected_threshold = threshold_values.get(key_for_threshold)
+            print(f"使用する閾値のキー: {key_for_threshold}, 値: {selected_threshold}")
+            for col in speed_cols:
+                df.loc[df[col] <= selected_threshold, col] = 0 # 閾値以下を0に置換
+        else:
+            print("閾値を使用しません 元のデータで描画します")
+
+    # 'speed'を含む列を探して個体IDを特定
+    speed_cols = [col for col in df.columns if col.startswith('speed_')]
     individual_ids = [col.replace('speed', '') for col in speed_cols]
     n_individuals = len(individual_ids)
 
@@ -38,9 +52,8 @@ def plot_speed_over_time(input_filename, output_filename=None):
         print("グラフ化するspeedデータが見つかりません。")
         return
 
-    # === グラフのレイアウトを自動で決定 ===
     # 個体数に応じて、できるだけ正方形に近いレイアウトにする
-    n_cols = int(np.ceil(np.sqrt(n_individuals)))
+    n_cols = int(np.ceil(np.sqrt(n_individuals + 1))) # +1は全個体グラフ用
     n_rows = (n_individuals + n_cols - 1) // n_cols
     
     # 図全体のサイズを定義
@@ -49,13 +62,14 @@ def plot_speed_over_time(input_filename, output_filename=None):
     axes_flat = axes.flatten() if n_individuals > 1 else [axes]
 
     # 図全体のタイトル
-    fig.suptitle('Speed over Time (individuals)', fontsize=16)
+    fig.suptitle(f'Speed over Time (threshold: {key_for_threshold}, {selected_threshold})', fontsize=16)
 
     # 最初のグラフ(axes_flat[0])に、全個体の速さを重ねてプロット
     ax_overlay = axes_flat[0]
     ax_overlay.set_title('All Individuals')
     ax_overlay.set_xlabel('Frame')
     ax_overlay.set_ylabel('Speed')
+    ax_overlay.set_ylim(0, df[speed_cols].max().max())   # 縦軸の統一
     ax_overlay.grid(True, linestyle='--', alpha=0.6)
 
     # ループして、同じaxに色分けしてプロット
@@ -79,6 +93,7 @@ def plot_speed_over_time(input_filename, output_filename=None):
         ax.set_title(f'Individual ID: {i_id}')
         ax.set_xlabel('Frame')
         ax.set_ylabel('Speed')
+        ax.set_ylim(0, df[speed_cols].max().max())   # 縦軸の統一
         ax.grid(True, linestyle='--', alpha=0.6)
 
     # 余った描画領域を非表示にする
@@ -86,21 +101,15 @@ def plot_speed_over_time(input_filename, output_filename=None):
     for i in range(n_individuals + 1, len(axes_flat)):
         axes_flat[i].axis('off')
 
-    # グラフの表示(デバッグ用)
+    # グラフの表示
     plt.show()
-
-    # # グラフを画像ファイルとして保存
-    # try:
-    #     plt.savefig(output_filename, dpi=300)
-    #     print(f"グラフを '{output_filename}' として保存しました。")
-    # except Exception as e:
-    #     print(f"ファイルの保存中にエラーが発生しました: {e}")
-
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
     INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position-velocity.csv'
-    # INPUT_CSV = 'C:\Users\13sou\OneDrive - Hiroshima City University\2025\UMATracker\datas\c00001(edit_2)-position-velocity.csv'
-    # OUTPUT_PNG = 'speed_over_time.png'
+    # 使用する閾値 KEY を選択
+    # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
+    # しきい値を使用しない場合は None に設定
+    KEY = "median_q2"
+    plot_speed_over_time(INPUT_CSV, KEY)
 
-    plot_speed_over_time(INPUT_CSV)
