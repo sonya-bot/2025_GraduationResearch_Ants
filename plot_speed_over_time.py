@@ -38,8 +38,8 @@ def plot_speed_over_time(input_filename, key_for_threshold):
         if key_for_threshold is not None:
             selected_threshold = threshold_values.get(key_for_threshold)
             print(f"使用する閾値のキー: {key_for_threshold}, 値: {selected_threshold}")
-            for col in speed_cols:
-                df.loc[df[col] <= selected_threshold, col] = 0 # 閾値以下を0に置換
+            # for col in speed_cols:
+            #     df.loc[df[col] <= selected_threshold, col] = 0 # 閾値以下を0に置換
         else:
             print("閾値を使用しません 元のデータで描画します")
 
@@ -52,9 +52,12 @@ def plot_speed_over_time(input_filename, key_for_threshold):
         print("グラフ化するspeedデータが見つかりません。")
         return
 
-    # 個体数に応じて、できるだけ正方形に近いレイアウトにする
-    n_cols = int(np.ceil(np.sqrt(n_individuals + 1))) # +1は全個体グラフ用
-    n_rows = (n_individuals + n_cols - 1) // n_cols
+    # グラフの総数は「合計グラフ(1) + 個体数」
+    n_plots = n_individuals + 1
+
+    # サブプロットのレイアウトを自動計算
+    n_cols = int(np.ceil(np.sqrt(n_plots)))
+    n_rows = (n_plots + n_cols - 1) // n_cols
     
     # 図全体のサイズを定義
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows), constrained_layout=True)
@@ -97,8 +100,16 @@ def plot_speed_over_time(input_filename, key_for_threshold):
         ax.grid(True, linestyle='--', alpha=0.6)
 
     # 余った描画領域を非表示にする
-    # ループの開始を n_individuals + 1に修正
-    for i in range(n_individuals + 1, len(axes_flat)):
+    # # ループの開始を n_individuals + 1に修正
+    # for i in range(n_individuals + 1, len(axes_flat)):
+    #     axes_flat[i].axis('off')
+
+        # 閾値線はそのまま描画
+    if selected_threshold is not None:
+        for i in range(n_plots):
+            axes_flat[i].axhline(y=selected_threshold, color='red', linestyle='--', linewidth=1.5)
+
+    for i in range(n_plots, len(axes_flat)):
         axes_flat[i].axis('off')
 
     # グラフの表示
