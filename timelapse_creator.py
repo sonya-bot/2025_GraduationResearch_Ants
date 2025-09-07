@@ -7,7 +7,8 @@ from datetime import datetime
 
 ### 初期設定
 def setup_camera(camera_num, output_path):
-    # 今日の日付を取得 (例: 20250831)
+    # 今日の日付を取得 (例: 20250831
+    
     today_str = datetime.now().strftime("%Y%m%d")
     count = 1
 
@@ -152,7 +153,7 @@ if __name__ == '__main__':
     start = time.time()
 
     # 撮影設定
-    CAMERA_NUM = 1 # カメラ番号,PC本体の場合は0を使用。
+    CAMERA_NUM = 2 # カメラ番号,PC本体の場合は0を使用。
     CAPTURE_INTERVAL = 5.0 # 画像取得間隔（秒）
     OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data"
 
