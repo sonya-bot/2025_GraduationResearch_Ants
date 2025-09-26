@@ -62,7 +62,7 @@ def plot_speed_over_time(input_filename, key_for_threshold):
     # 図全体のサイズを定義
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows), constrained_layout=True)
     # グラフが1つの場合でも対応できるように、axesを1次元配列に変換
-    axes_flat = axes.flatten() if n_individuals > 1 else [axes]
+    axes_flat = np.atleast_1d(axes).flatten()
 
     # 図全体のタイトル
     fig.suptitle(f'Speed over Time (threshold: {key_for_threshold}, {selected_threshold})', fontsize=16)
@@ -117,7 +117,7 @@ def plot_speed_over_time(input_filename, key_for_threshold):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position-velocity.csv'
+    INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/0903/C0006(edit)-position-velocity.csv'
     # 使用する閾値 KEY を選択
     # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
     # しきい値を使用しない場合は None に設定

@@ -130,7 +130,7 @@ def plot_histogram_dashboard(input_filename, key_for_threshold):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position-velocity.csv'
+    INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/0903/C0006(edit)-position-velocity.csv'
     KEY = "median_q2"
 
     plot_histogram_dashboard(INPUT_CSV, KEY)

@@ -35,6 +35,11 @@ def setup_camera(camera_num, output_path):
     if not cap.isOpened():
         print(f"エラー: カメラ {camera_num} を開けませんでした。")
         return None, None # 変更点: エラー時はNoneを返す
+    
+    # 撮影用設定(Linux)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
 
     ret, frame = cap.read()
     if not ret:
@@ -153,9 +158,10 @@ if __name__ == '__main__':
     start = time.time()
 
     # 撮影設定
-    CAMERA_NUM = 2 # カメラ番号,PC本体の場合は0を使用。
-    CAPTURE_INTERVAL = 5.0 # 画像取得間隔（秒）
-    OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data"
+    CAMERA_NUM = 0 # カメラ番号,PC本体の場合は0を使用。
+    CAPTURE_INTERVAL =60.0# 画像取得間隔（秒）
+    # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data" #ファイルパス(macOS)
+    OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/capture_data" #ファイルパス(Linux)
 
 
     cap = None
