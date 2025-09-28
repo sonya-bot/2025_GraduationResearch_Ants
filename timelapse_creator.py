@@ -5,6 +5,11 @@ import shutil
 import time
 from datetime import datetime
 
+# --- 定数定義 ---
+# プレビュー用のウィンドウ名
+WINDOW_NAME = "UMATracker Timelapse Creator"
+
+
 ### 初期設定
 def setup_camera(camera_num, output_path):
     # 今日の日付を取得 (例: 20250831
@@ -36,10 +41,12 @@ def setup_camera(camera_num, output_path):
         print(f"エラー: カメラ {camera_num} を開けませんでした。")
         return None, None # 変更点: エラー時はNoneを返す
     
-    # 撮影用設定(Linux)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WINDOW_NAME, 640, 480)
+    cv2.moveWindow(WINDOW_NAME, 100, 100)
 
     ret, frame = cap.read()
     if not ret:
@@ -47,13 +54,13 @@ def setup_camera(camera_num, output_path):
         cap.release()
         return None, None # エラー時はNoneを返す
 
-    cv2.imshow("Debug Preview", frame)
+    cv2.imshow(WINDOW_NAME, frame)
     print("カメラ映像が表示されます。問題なければ、エンターキーを押してください。")
     print("（このキー入力で、タイムラプス撮影が開始されます）")
     while True:
         if cv2.waitKey(1) & 0xFF == 13: # 13はEnterキーのキーコード
             break
-    cv2.destroyWindow("Debug Preview")
+    # cv2.destroyWindow("Debug Preview")
     print("--------------------------------------------------")
 
     print(f"画像をフォルダ '{folder_path}' に保存します。")
@@ -71,9 +78,14 @@ def capture(output_path, cap, capture_interval):
     count = 1 # 撮影枚数のカウント、ファイル名に使用する。
     print("撮影を開始します。撮影を終了する場合はエンターキーを押してください")
 
+    # # 撮影中のウィンドウもリサイズ可能にする
+    # cv2.namedWindow(CAPTURE_WINDOW_NAME, cv2.WINDOW_NORMAL)
+    # cv2.resizeWindow(CAPTURE_WINDOW_NAME, 640, 480)
+    # cv2.moveWindow(CAPTURE_WINDOW_NAME, 100, 100)  # ウィンドウの位置を調整
+
     while True: # capture_interval秒ごとに画像の読み込みおよび保存を行う。
         ret, frame = cap.read() # カメラからキャプチャされた画像をframeとして読み込む
-        cv2.imshow("camera", frame) # frameを画面に表示。なぜかこいつを残しておかないとenterで操作を止められない。
+        cv2.imshow(WINDOW_NAME, frame) # frameを画面に表示。なぜかこいつを残しておかないとenterで操作を止められない。
         k = cv2.waitKey(1)&0xff # キー入力を待つ。引数は入力待ち時間。
         print("撮影枚数:{0}".format(count)) # 撮影枚数の確認
 
@@ -159,7 +171,7 @@ if __name__ == '__main__':
 
     # 撮影設定
     CAMERA_NUM = 0 # カメラ番号,PC本体の場合は0を使用。
-    CAPTURE_INTERVAL =60.0# 画像取得間隔（秒）
+    CAPTURE_INTERVAL = 5.0# 画像取得間隔（秒）
     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data" #ファイルパス(macOS)
     OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/capture_data" #ファイルパス(Linux)
 
