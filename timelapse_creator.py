@@ -3,7 +3,10 @@ import glob
 import os
 import shutil
 import time
+import datetime
 from datetime import datetime
+dt_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # 現在の日時を取得
+
 
 # --- 定数定義 ---
 # プレビュー用のウィンドウ名
@@ -74,30 +77,36 @@ def setup_camera(camera_num, output_path):
     # print('Start')
 
 ### 画像の撮影
-def capture(output_path, cap, capture_interval):
+def capture(output_path, cap, capture_interval, burst_num):
     count = 1 # 撮影枚数のカウント、ファイル名に使用する。
-    print("撮影を開始します。撮影を終了する場合はエンターキーを押してください")
+    stop_requested = False # 変更点2: ループを抜けるためのフラグを追加
+    print(f"撮影を開始します。約{capture_interval}秒ごとに{burst_num}枚撮影します。")
+    print("撮影を終了する場合はエンターキーを押してください。")
+    print("recording start",dt_now) # 撮影開始時の時刻を記録
 
-    # # 撮影中のウィンドウもリサイズ可能にする
-    # cv2.namedWindow(CAPTURE_WINDOW_NAME, cv2.WINDOW_NORMAL)
-    # cv2.resizeWindow(CAPTURE_WINDOW_NAME, 640, 480)
-    # cv2.moveWindow(CAPTURE_WINDOW_NAME, 100, 100)  # ウィンドウの位置を調整
 
     while True: # capture_interval秒ごとに画像の読み込みおよび保存を行う。
-        ret, frame = cap.read() # カメラからキャプチャされた画像をframeとして読み込む
-        cv2.imshow(WINDOW_NAME, frame) # frameを画面に表示。なぜかこいつを残しておかないとenterで操作を止められない。
-        k = cv2.waitKey(1)&0xff # キー入力を待つ。引数は入力待ち時間。
-        print("撮影枚数:{0}".format(count)) # 撮影枚数の確認
+        for _ in range(burst_num):
+            ret, frame = cap.read() # カメラからキャプチャされた画像をframeとして読み込む
+            cv2.imshow(WINDOW_NAME, frame) # frameを画面に表示。なぜかこいつを残しておかないとenterで操作を止められない。
+            k = cv2.waitKey(1)&0xff # キー入力を待つ。引数は入力待ち時間。
+            print("撮影枚数:{0}".format(count)) # 撮影枚数の確認
 
-        # ファイルへの保存
-        path = os.path.join(output_path, f"{count:04d}.jpg") # 連番で保存、後にリネーム
-        cv2.imwrite(path, frame) # 画像をフォルダへ保存
-        count += 1
+            # ファイルへの保存
+            path = os.path.join(output_path, f"{count:04d}.jpg") # 連番で保存、後にリネーム
+            cv2.imwrite(path, frame) # 画像をフォルダへ保存
+            count += 1
 
-        # エンターキーを押したら撮影終了
-        if k == 13:
-            break 
+            # エンターキーを押したら撮影終了
+            if k == 13:
+                stop_requested = True # フラグを立てる
+                break 
+        
+        if stop_requested:
+            break # 外側のwhileループを抜ける
+
         time.sleep(capture_interval)
+
     print("撮影完了","撮影枚数:{0}".format(count-1))
     cap.release()
     cv2.destroyAllWindows()
@@ -134,13 +143,17 @@ def timelaps(output_path):
     date = os.path.basename(output_path)
     
     # フレームレートの設定、30fpsになるように調整
-    frame_rate = 2 if len(images) < 30 else len(images) / 30
+    # frame_rate = 2 if len(images) < 30 else len(images) / 30
+    frame_rate = 66.66666
+    if frame_rate*1000 > 65535:
+        frame_rate = round(frame_rate)
+
 
     img_for_size = cv2.imread(images[0])
     height, width, layers = img_for_size.shape
 
-    # fourcc = cv2.VideoWriter_fourcc(*'mp4v') # 動画のコーデックをmp4に指定
-    fourcc = cv2.VideoWriter_fourcc(*'avc1')
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') # 動画のコーデックをmp4に指定
+    # fourcc = cv2.VideoWriter_fourcc(*'avc1')
 
     # 動画の保存先を画像フォルダ内に指定
     video_path = os.path.join(output_path, f"{date}.mp4")
@@ -171,10 +184,14 @@ if __name__ == '__main__':
 
     # 撮影設定
     CAMERA_NUM = 0 # カメラ番号,PC本体の場合は0を使用。
-    CAPTURE_INTERVAL = 5.0# 画像取得間隔（秒）
+    CAPTURE_INTERVAL = 1.0# 画像取得間隔（秒）
+    CAPTURE_NUM_OF_INTERVAL = 2 # 1間隔あたりの撮影枚数
     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data" #ファイルパス(macOS)
-    OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/capture_data" #ファイルパス(Linux)
-
+    # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(macOS),テスト用
+    # OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/capture_data" #ファイルパス(Linux)
+    # OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/test_data" #ファイルパス(Linux),テスト用
+    OUTPUT_PATH  = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
+    # OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_HDD),テスト用
 
     cap = None
     try:
@@ -182,12 +199,13 @@ if __name__ == '__main__':
         output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
         if output_path_full and cap:
             # 各関数には、setup_cameraが返したフルパスを渡す
-            capture(output_path_full, cap, CAPTURE_INTERVAL)
+            capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
             rename_files(output_path_full)
             timelaps(output_path_full)
             # delete_captured_images(output_path_full)
     except Exception as e:
         print(f"エラーが発生しました: {e}")
+        print("error",dt_now)# エラー発生時の時刻を記録
     finally:
         # 最後にカメラを解放する
         if cap:
@@ -196,3 +214,15 @@ if __name__ == '__main__':
 
     elapsed_time = time.time() - start
     # print ("処理にかかった時間は:{0:.2f}".format(elapsed_time) + "[sec]")
+
+# 動画の作成のみを行う場合
+# if __name__ == '__main__':
+#     # 撮影済みの画像が保存されているフォルダのフルパスを指定します
+#     target_folder = "/mnt/d/datas/capture_data/20251006_02"
+
+#     # timelaps関数だけを呼び出して動画を再作成します
+#     try:
+#         print(f"フォルダ '{target_folder}' の画像から動画を再作成します。")
+#         timelaps(target_folder)
+#     except Exception as e:
+#         print(f"エラーが発生しました: {e}")
