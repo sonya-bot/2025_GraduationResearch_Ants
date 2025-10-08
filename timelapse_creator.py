@@ -5,6 +5,8 @@ import shutil
 import time
 import datetime
 from datetime import datetime
+import queue
+import threading
 dt_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # 現在の日時を取得
 
 
@@ -78,6 +80,20 @@ def setup_camera(camera_num, output_path):
 
 ### 画像の撮影
 def capture(output_path, cap, capture_interval, burst_num):
+    q = queue.Queue()
+
+    # ファイル保存をバックグラウンドで行う関数
+    def saver():
+        while True:
+            path, frame = q.get() # キューからデータ取得
+            if frame is None: # 終了シグナル
+                break
+            cv2.imwrite(path, frame)
+            q.task_done()
+
+    # 保存用スレッドを開始
+    saver_thread = threading.Thread(target=saver, daemon=True)
+    saver_thread.start()
     count = 1 # 撮影枚数のカウント、ファイル名に使用する。
     stop_requested = False # 変更点2: ループを抜けるためのフラグを追加
     print(f"撮影を開始します。約{capture_interval}秒ごとに{burst_num}枚撮影します。")
@@ -93,9 +109,11 @@ def capture(output_path, cap, capture_interval, burst_num):
             print("撮影枚数:{0}".format(count)) # 撮影枚数の確認
 
             # ファイルへの保存
-            path = os.path.join(output_path, f"{count:04d}.jpg") # 連番で保存、後にリネーム
-            cv2.imwrite(path, frame) # 画像をフォルダへ保存
+            path = os.path.join(output_path, f"{count:04d}.jpg")
+            # cv2.imwrite(path, frame) # ← 元の処理をコメントアウト
+            q.put((path, frame)) # ← 代わりにキューへ送る
             count += 1
+
 
             # エンターキーを押したら撮影終了
             if k == 13:
@@ -105,9 +123,12 @@ def capture(output_path, cap, capture_interval, burst_num):
         if stop_requested:
             break # 外側のwhileループを抜ける
 
-        time.sleep(capture_interval)
+        time.sleep(capture_interval) # capture_interval秒待つ
 
-    print("撮影完了","撮影枚数:{0}".format(count-1))
+    print("撮影完了、残りの画像の保存を待っています...")
+    q.put((None, None)) # スレッドに終了を通知
+    # q.join() # キューのすべてのタスクが終わるまで待機
+    print("全ての画像の保存が完了しました。")
     cap.release()
     cv2.destroyAllWindows()
 
@@ -180,45 +201,96 @@ def delete_captured_images(output_path):
     print("画像ファイルの削除が完了しました。")
 
 if __name__ == '__main__':
-    start = time.time()
+    start_time = time.time()
 
-    # 撮影設定
-    CAMERA_NUM = 0 # カメラ番号,PC本体の場合は0を使用。
-    CAPTURE_INTERVAL = 1.0# 画像取得間隔（秒）
-    CAPTURE_NUM_OF_INTERVAL = 2 # 1間隔あたりの撮影枚数
-    # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data" #ファイルパス(macOS)
-    # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(macOS),テスト用
-    # OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/capture_data" #ファイルパス(Linux)
-    # OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/test_data" #ファイルパス(Linux),テスト用
+    # --- 撮影設定 ---
+    CAMERA_NUM = 0  # PC内蔵カメラは0、USBカメラは1, 2...
+    CAPTURE_INTERVAL = 1.0  # 画像取得間隔（秒）
+    CAPTURE_NUM_OF_INTERVAL = 2  # 1間隔あたりの撮影枚数
     OUTPUT_PATH  = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
     # OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_HDD),テスト用
 
+    # --- 実行する処理の選択 --- # 必要に応じてTrue/Falseを切り替える
+    DO_CAPTURE = True 
+    DO_RENAME = False
+    DO_TIMELAPSE = False # 必要に応じてTrueに変更
+    DO_DELETE_IMAGES = False # 必要に応じてTrueに変更
+
     cap = None
+    output_path_full = ""
     try:
-        # setup_cameraはフルパスを返すので、変数名をoutput_path_fullに変更
-        output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
-        if output_path_full and cap:
-            # 各関数には、setup_cameraが返したフルパスを渡す
-            capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
+        if DO_CAPTURE:
+            output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
+            if output_path_full and cap:
+                capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
+        else:
+             # 撮影しない場合は、処理対象のフォルダを手動で指定
+            output_path_full = '/mnt/d/datas/test_data/20251008_02'# 例: "./capture_data/20251008_01"
+
+        if DO_RENAME and os.path.exists(output_path_full):
             rename_files(output_path_full)
+
+        if DO_TIMELAPSE and os.path.exists(output_path_full):
             timelaps(output_path_full)
-            # delete_captured_images(output_path_full)
+
+        if DO_DELETE_IMAGES and os.path.exists(output_path_full):
+            delete_captured_images(output_path_full)
+
     except Exception as e:
         print(f"エラーが発生しました: {e}")
-        print("error",dt_now)# エラー発生時の時刻を記録
+        import traceback
+        traceback.print_exc() # 詳細なエラー情報を表示
     finally:
-        # 最後にカメラを解放する
-        if cap:
+        # 最後にまとめてリソースを解放する
+        if cap and cap.isOpened():
+            print("カメラを解放しています。")
             cap.release()
         cv2.destroyAllWindows()
+        print("クリーンアップ処理が完了しました。")
+        
+    elapsed_time = time.time() - start_time
+    print(f"全ての処理が完了しました。処理時間: {elapsed_time:.2f}秒")
 
-    elapsed_time = time.time() - start
+# if __name__ == '__main__':
+#     start = time.time()
+
+#     # 撮影設定
+#     CAMERA_NUM = 0 # カメラ番号,PC本体の場合は0を使用。
+#     CAPTURE_INTERVAL = 1.0# 画像取得間隔（秒）
+#     CAPTURE_NUM_OF_INTERVAL = 2 # 1間隔あたりの撮影枚数
+#     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/capture_data" #ファイルパス(macOS)
+#     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(macOS),テスト用
+#     # OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/capture_data" #ファイルパス(Linux)
+#     # OUTPUT_PATH = "/mnt/c/Users/Student/OneDrive - Hiroshima City University/2025/UMATracker/datas/test_data" #ファイルパス(Linux),テスト用
+#     # OUTPUT_PATH  = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
+#     OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_HDD),テスト用
+
+#     cap = None
+#     try:
+#         # setup_cameraはフルパスを返すので、変数名をoutput_path_fullに変更
+#         output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
+#         if output_path_full and cap:
+#             # 各関数には、setup_cameraが返したフルパスを渡す
+#             capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
+#             rename_files(output_path_full)
+#             # timelaps(output_path_full)
+#             # delete_captured_images(output_path_full)
+#     except Exception as e:
+#         print(f"エラーが発生しました: {e}")
+#         print("error",dt_now)# エラー発生時の時刻を記録
+#     # finally:
+#     #     # 最後にカメラを解放する
+#     #     if cap:
+#     #         cap.release()
+#     #     cv2.destroyAllWindows()
+
+#     elapsed_time = time.time() - start
     # print ("処理にかかった時間は:{0:.2f}".format(elapsed_time) + "[sec]")
 
-# 動画の作成のみを行う場合
+# # 動画の作成のみを行う場合
 # if __name__ == '__main__':
 #     # 撮影済みの画像が保存されているフォルダのフルパスを指定します
-#     target_folder = "/mnt/d/datas/capture_data/20251006_02"
+#     target_folder = "/mnt/d/datas/capture_data/20251007_02"
 
 #     # timelaps関数だけを呼び出して動画を再作成します
 #     try:

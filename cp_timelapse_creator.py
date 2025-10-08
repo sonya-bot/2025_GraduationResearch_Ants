@@ -245,7 +245,7 @@ if __name__ == '__main__':
                 capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
-            output_path_full = '/mnt/d/datas/capture_data/20251008_11' 
+            output_path_full = '/mnt/d/datas/capture_data/20251008_13' 
 
         if DO_RENAME and os.path.exists(output_path_full):
             rename_files(output_path_full)
