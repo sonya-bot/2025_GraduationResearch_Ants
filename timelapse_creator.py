@@ -158,7 +158,7 @@ def capture(output_path, cap, capture_interval, burst_num):
 
     # --- 終了処理 ---
     end_time = time.time()
-    elapsed_time = end_time - start_time
+    elapsed_time = end_time - start_time # 経過時間（秒）
     total_images = count - 1
     
     print("撮影完了、各種スレッドの終了と残りの画像の保存を待っています...")

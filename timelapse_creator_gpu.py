@@ -62,49 +62,80 @@ def setup_camera(camera_num, output_path):
 
 ### 画像の撮影
 def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre_capture_duration):
-    """指定された間隔で画像を撮影し、バックグラウンドで保存する"""
-    # 総撮影枚数を計算(予備撮影時間 + 撮影時間) / 撮影間隔 * 1回の間隔で撮影する枚数
-    # CAPTURE_DURATIONを時間から秒に変換
-    capture_duration_seconds = capture_duration * 3600
-    total_capture_images = int((pre_capture_duration + capture_duration_seconds) / capture_interval * burst_num)
-    print(f"総撮影枚数の目安: 約{total_capture_images}")
-    q = queue.Queue()
+    """
+    指定された間隔で画像を撮影し、バックグラウンドで保存する
+    """
+    # --- 共有変数と同期オブジェクト ---
+    total_capture_images = int((pre_capture_duration + (capture_duration * 3600)) / capture_interval) * burst_num # 総撮影枚数 = 撮影時間(秒) + 予備撮影時間(秒) / 撮影間隔(秒) * 1回の間隔で撮影する枚数
+    latest_frame = None
+    ret_value = False
+    lock = threading.Lock()
+    reader_stopped = threading.Event()
+    new_frame_event = threading.Event()
 
-    def saver():
+    # --- リーダー・スレッド（カメラからの読み込み） ---
+    def _reader_loop():
+        nonlocal latest_frame, ret_value
+        while not reader_stopped.is_set():
+            ret, frame = cap.read()
+            with lock:
+                ret_value = ret
+                if ret:
+                    latest_frame = frame
+                    new_frame_event.set()
+                else:
+                    new_frame_event.clear()
+            time.sleep(0.001)
+        print("カメラ読み込みスレッドが停止しました。")
+
+    reader_thread = threading.Thread(target=_reader_loop, daemon=True)
+    reader_thread.start()
+
+    # --- セーバー・スレッド（ファイルへの保存） ---
+    q = queue.Queue(maxsize=10)
+    def _saver_loop():
         while True:
             path, frame = q.get()
             if frame is None:
+                q.task_done()
                 break
             cv2.imwrite(path, frame)
             q.task_done()
-
-    saver_thread = threading.Thread(target=saver, daemon=True)
+    saver_thread = threading.Thread(target=_saver_loop, daemon=True)
     saver_thread.start()
+
+    # --- メインの撮影ループ ---
     count = 1
     stop_requested = False
     print(f"撮影を開始します。約{capture_interval}秒ごとに{burst_num}枚撮影します。")
     print("撮影を終了する場合はエンターキーを押してください。")
     print(f"recording start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
+    start_time = time.time()
+    
     while not stop_requested:
         for _ in range(burst_num):
-            ret, frame = cap.read()
+            new_frame_event.wait()
+            new_frame_event.clear()
+            
+            with lock:
+                ret, frame = ret_value, latest_frame.copy() if ret_value and latest_frame is not None else (False, None)
+            
             if not ret:
-                print("エラー: フレームを読み込めませんでした。")
-                stop_requested = True
-                break
-            
+                print("警告: フレームの取得に失敗しました。撮影を続行します。")
+                continue
+
             cv2.imshow(WINDOW_NAME, frame)
-            
-            print(f"撮影枚数:{count}")
+            k = cv2.waitKey(1) & 0xff
+
+            if count % 10 == 0:
+                print(f"撮影枚数:{count}")
 
             path = os.path.join(output_path, f"{count:04d}.jpg")
             q.put((path, frame))
             count += 1
-            
-            # imshowの直後にwaitKeyを置くことでキー入力を確実に受け取る
-            k = cv2.waitKey(1) & 0xff
-            if k == 13: # Enterキー
+
+            if k == 13:
                 stop_requested = True
                 break
 
@@ -119,12 +150,17 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
             # ループの処理時間も考慮するため、厳密なインターバルにはならない
             time.sleep(capture_interval)
 
-    print("撮影完了、残りの画像の保存を待っています...")
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    total_images = count - 1
+    
+    print("撮影完了、各種スレッドの終了と残りの画像の保存を待っています...")
+    reader_stopped.set()
+    reader_thread.join(timeout=1)
     q.put((None, None))
-    saver_thread.join()
-    print("全ての画像の保存が完了しました。")
-    cap.release()
-    cv2.destroyAllWindows()
+    q.join()
+
+    print(f"全ての画像の保存が完了しました。総撮影枚数: {total_images}")
 
 
 ### 予備撮影時間時の撮影画像を削除
@@ -272,11 +308,10 @@ if __name__ == '__main__':
     CAMERA_NUM = 1 # カメラ番号
     CAPTURE_INTERVAL = 1.0 # 撮影間隔(秒)
     PRE_CAPTURE_DURATION = 10 # 予備撮影時間(秒)
-    # ★★★ 修正点: 変数名を統一 ★★★
     BURST_NUM = 2 # 1回の間隔で撮影する枚数
     CAPTURE_DURATION = 3  # 撮影時間(時間)
     
-    OUTPUT_PATH = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
+    # OUTPUT_PATH = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
     # OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_SSD),テスト用
     OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(Mac)
 
@@ -294,15 +329,14 @@ if __name__ == '__main__':
             output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
             if output_path_full and cap:
                 capture(output_path_full, cap, CAPTURE_INTERVAL, BURST_NUM, CAPTURE_DURATION, PRE_CAPTURE_DURATION)
+            if DO_DELETE_PRE_CAPTURE:
+                delete_pre_capture_images(output_path_full, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
             output_path_full = '/mnt/d/datas/capture_data/20251009_02' # ← ここを適宜変更
 
         # output_path_fullが正しく設定されている場合のみ後続処理を実行
         if output_path_full and os.path.exists(output_path_full):
-            # ★★★ 修正点: 予備撮影画像の削除処理を呼び出す ★★★
-            if DO_DELETE_PRE_CAPTURE:
-                delete_pre_capture_images(output_path_full, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
 
             if DO_RENAME:
                 rename_files(output_path_full)
