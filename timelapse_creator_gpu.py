@@ -9,9 +9,6 @@ import queue
 import threading
 import subprocess # FFmpegを呼び出すために追加
 
-dt_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S") # 現在の日時を取得
-
-
 # --- 定数定義 ---
 # プレビュー用のウィンドウ名
 WINDOW_NAME = "UMATracker Timelapse Creator"
@@ -64,8 +61,13 @@ def setup_camera(camera_num, output_path):
 
 
 ### 画像の撮影
-def capture(output_path, cap, capture_interval, burst_num):
+def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre_capture_duration):
     """指定された間隔で画像を撮影し、バックグラウンドで保存する"""
+    # 総撮影枚数を計算(予備撮影時間 + 撮影時間) / 撮影間隔 * 1回の間隔で撮影する枚数
+    # CAPTURE_DURATIONを時間から秒に変換
+    capture_duration_seconds = capture_duration * 3600
+    total_capture_images = int((pre_capture_duration + capture_duration_seconds) / capture_interval * burst_num)
+    print(f"総撮影枚数の目安: 約{total_capture_images}")
     q = queue.Queue()
 
     def saver():
@@ -82,7 +84,7 @@ def capture(output_path, cap, capture_interval, burst_num):
     stop_requested = False
     print(f"撮影を開始します。約{capture_interval}秒ごとに{burst_num}枚撮影します。")
     print("撮影を終了する場合はエンターキーを押してください。")
-    print("recording start", dt_now)
+    print(f"recording start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     while not stop_requested:
         for _ in range(burst_num):
@@ -93,19 +95,28 @@ def capture(output_path, cap, capture_interval, burst_num):
                 break
             
             cv2.imshow(WINDOW_NAME, frame)
-            k = cv2.waitKey(1) & 0xff
             
             print(f"撮影枚数:{count}")
 
             path = os.path.join(output_path, f"{count:04d}.jpg")
             q.put((path, frame))
             count += 1
-
+            
+            # imshowの直後にwaitKeyを置くことでキー入力を確実に受け取る
+            k = cv2.waitKey(1) & 0xff
             if k == 13: # Enterキー
+                stop_requested = True
+                break
+
+            # 総撮影枚数に達したら停止
+            if count > total_capture_images:
+                print(f"撮影枚数が総撮影枚数に達しました: {count - 1}/{total_capture_images}")
                 stop_requested = True
                 break
         
         if not stop_requested:
+            # 次の撮影まで待機
+            # ループの処理時間も考慮するため、厳密なインターバルにはならない
             time.sleep(capture_interval)
 
     print("撮影完了、残りの画像の保存を待っています...")
@@ -114,6 +125,27 @@ def capture(output_path, cap, capture_interval, burst_num):
     print("全ての画像の保存が完了しました。")
     cap.release()
     cv2.destroyAllWindows()
+
+
+### 予備撮影時間時の撮影画像を削除
+def delete_pre_capture_images(output_path, pre_capture_duration, capture_interval, burst_num):
+    """予備撮影時間中に撮影された画像を削除する"""
+    # 予備撮影時間中に撮影された画像の総数を計算 (予備撮影時間 / 撮影間隔) * 1回の間隔で撮影する枚数
+    total_pre_capture_images = int((pre_capture_duration / capture_interval) * burst_num)
+    print(f"予備撮影時間中に撮影された約{total_pre_capture_images}枚の画像を削除します...")
+    
+    for i in range(1, total_pre_capture_images + 1):
+        file_path = os.path.join(output_path, f"{i:04d}.jpg")
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            # 削除ログは大量に出る可能性があるため、コメントアウト。必要に応じて有効化。
+            # print(f"削除しました: {file_path}")
+        else:
+            # 途中で撮影が止まった場合などを考慮し、ファイルが存在しない場合は警告のみに留める
+            print(f"警告: ファイルが見つかりません: {file_path}")
+    
+    print("予備撮影時間中の画像の削除が完了しました。")
+
 
 ### ファイル名をゼロ埋め連番にリネーム
 def rename_files(output_path):
@@ -144,7 +176,8 @@ def timelaps(output_path):
     指定されたフォルダ内の画像をFFmpegを使ってタイムラプス動画に変換する。
     GPU (h264_nvenc) を使用して高速処理を行う。
     """
-    print(f'output_path') #動画を作成する対象のファイル名を表示
+    # ★★★ 修正点: f-stringの書式を修正 ★★★
+    print(f"動画作成対象フォルダ: {output_path}")
     images = sorted(glob.glob(os.path.join(output_path, '*.jpg')))
     print(f"画像の総枚数: {len(images)}")
 
@@ -165,8 +198,12 @@ def timelaps(output_path):
     frame_rate = 2.0 #1枚の画像を0.5秒表示 (2fps)
 
     # --- FFmpegのコマンドを組み立てる ---
+    # ★★★ 注意: FFmpegのパスは環境に合わせて変更するか、PATHを通してください ★★★
+    # 例: Windowsなら 'ffmpeg' のみで動作することが多い
+    # 例: Linux/macOSで特定場所にインストールした場合 '/path/to/ffmpeg'
+    ffmpeg_path = '/usr/local/bin/ffmpeg'
     command = [
-        '/usr/local/bin/ffmpeg', # ★★★ 変更点: FFmpegのフルパスを直接指定 ★★★
+        ffmpeg_path,
         '-y',  # 出力ファイルを無条件に上書き
         '-f', 'rawvideo',  # 入力フォーマットをrawvideoに指定
         '-vcodec', 'rawvideo',
@@ -176,7 +213,9 @@ def timelaps(output_path):
         '-i', '-',  # 標準入力からデータを受け取る
         
         # --- ビデオコーデックとオプション (ここがGPU設定の核心) ---
+        # ★★★ 注意: 'h264_nvenc' はNVIDIA GPUが必要です。ない場合は 'libx264' に変更してください ★★★
         '-c:v', 'h264_nvenc',  # NVIDIA GPUのH.264エンコーダを使用
+        # '-c:v', 'libx264',   # CPUでエンコードする場合 (互換性が高い)
         '-preset', 'p5',      # プリセット: p1(高品質) ~ p7(最速) の中でバランス型
         '-cq:v', '23',        # 固定品質モード (18-28が一般的。数値が低いほど高品質)
         '-pix_fmt', 'yuv420p',# 互換性の高いピクセルフォーマット
@@ -230,16 +269,22 @@ if __name__ == '__main__':
     start_time = time.time()
 
     # --- 撮影設定 ---
-    CAMERA_NUM = 0
-    CAPTURE_INTERVAL = 1.0
-    CAPTURE_NUM_OF_INTERVAL = 2
+    CAMERA_NUM = 1 # カメラ番号
+    CAPTURE_INTERVAL = 1.0 # 撮影間隔(秒)
+    PRE_CAPTURE_DURATION = 10 # 予備撮影時間(秒)
+    # ★★★ 修正点: 変数名を統一 ★★★
+    BURST_NUM = 2 # 1回の間隔で撮影する枚数
+    CAPTURE_DURATION = 3  # 撮影時間(時間)
+    
     OUTPUT_PATH = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
     # OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_SSD),テスト用
+    OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(Mac)
 
     # --- 実行する処理の選択 ---
     DO_CAPTURE = True
+    DO_DELETE_PRE_CAPTURE = True
     DO_RENAME = True
-    DO_TIMELAPSE = True # ← ここをTrueにしてGPUエンコードを試す
+    DO_TIMELAPSE = False # ← ここをTrueにしてGPUエンコードを試す
     DO_DELETE_IMAGES = False # 動画が正しくできていることを確認してからTrueにする
 
     cap = None
@@ -248,19 +293,28 @@ if __name__ == '__main__':
         if DO_CAPTURE:
             output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
             if output_path_full and cap:
-                capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
+                capture(output_path_full, cap, CAPTURE_INTERVAL, BURST_NUM, CAPTURE_DURATION, PRE_CAPTURE_DURATION)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
             output_path_full = '/mnt/d/datas/capture_data/20251009_02' # ← ここを適宜変更
 
-        if DO_RENAME and os.path.exists(output_path_full):
-            rename_files(output_path_full)
+        # output_path_fullが正しく設定されている場合のみ後続処理を実行
+        if output_path_full and os.path.exists(output_path_full):
+            # ★★★ 修正点: 予備撮影画像の削除処理を呼び出す ★★★
+            if DO_DELETE_PRE_CAPTURE:
+                delete_pre_capture_images(output_path_full, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
 
-        if DO_TIMELAPSE and os.path.exists(output_path_full):
-            timelaps(output_path_full)
+            if DO_RENAME:
+                rename_files(output_path_full)
 
-        if DO_DELETE_IMAGES and os.path.exists(output_path_full):
-            delete_captured_images(output_path_full)
+            if DO_TIMELAPSE:
+                timelaps(output_path_full)
+
+            if DO_DELETE_IMAGES:
+                delete_captured_images(output_path_full)
+        elif DO_CAPTURE is False:
+             print(f"エラー: 指定されたフォルダが見つかりません: {output_path_full}")
+
 
     except Exception as e:
         print(f"エラーが発生しました: {e}")
