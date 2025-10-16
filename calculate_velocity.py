@@ -61,7 +61,7 @@ def calculate_velocity(input_filename, output_filename):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/0903/C0006(edit)-position.csv'
-    OUTPUT_CSV = f'{INPUT_CSV.replace("position", "position-velocity")}'
+    INPUT_CSV = "d:/analysis_data/20251010_01/20251010_01-position.csv"
+    OUTPUT_CSV = f'{INPUT_CSV.replace("position", "position_velocity")}'
     
     calculate_velocity(INPUT_CSV, OUTPUT_CSV)

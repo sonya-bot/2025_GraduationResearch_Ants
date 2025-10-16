@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 # ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
 
 # 速度データが含まれるCSVファイルのフルパス
-VELOCITY_FILE_PATH = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position-velocity.csv'
+VELOCITY_FILE_PATH = "d:/analysis_data/20251010_01/20251010_01-position_velocity.csv"
 
 # 元の位置データが含まれるCSVファイルのフルパス
-POSITION_FILE_PATH = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position.csv'
+POSITION_FILE_PATH = "d:/analysis_data/20251010_01/20251010_01-position.csv"
 
 # ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
 

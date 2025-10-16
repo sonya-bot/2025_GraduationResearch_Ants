@@ -8,7 +8,6 @@ from datetime import datetime
 import queue
 import threading
 import subprocess # FFmpegを呼び出すために追加
-import re # 追加: 正規表現モジュール
 
 # --- 定数定義 ---
 # プレビュー用のウィンドウ名
@@ -40,7 +39,6 @@ def setup_camera(camera_num, output_path):
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # バッファサイズを1に設定して遅延を減らす
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(WINDOW_NAME, 640, 480)
     cv2.moveWindow(WINDOW_NAME, 100, 100)
@@ -68,7 +66,7 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
     指定された間隔で画像を撮影し、バックグラウンドで保存する
     """
     # --- 共有変数と同期オブジェクト ---
-    total_capture_images = int((pre_capture_duration + float(capture_duration * 3600)) / capture_interval) * burst_num # 総撮影枚数 = 撮影時間(秒) + 予備撮影時間(秒) / 撮影間隔(秒) * 1回の間隔で撮影する枚数
+    total_capture_images = int((pre_capture_duration + (capture_duration * 3600)) / capture_interval) * burst_num # 総撮影枚数 = 撮影時間(秒) + 予備撮影時間(秒) / 撮影間隔(秒) * 1回の間隔で撮影する枚数
     latest_frame = None
     ret_value = False
     lock = threading.Lock()
@@ -111,13 +109,11 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
     stop_requested = False
     print(f"撮影を開始します。約{capture_interval}秒ごとに{burst_num}枚撮影します。")
     print("撮影を終了する場合はエンターキーを押してください。")
-    print(f"総撮影枚数は {total_capture_images} 枚となる予定です。")
     print(f"recording start: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     start_time = time.time()
 
-    # タイムスタンプの表示
-    font = cv2.FONT_HERSHEY_SIMPLEX
+        font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.6
     font_color = (255, 255, 255) # BGRなので白
     thickness = 1
@@ -134,22 +130,6 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
             if not ret:
                 print("警告: フレームの取得に失敗しました。撮影を続行します。")
                 continue
-
-            # ★★★ ここからタイムスタンプ描画処理 ★★★
-            # 1. 現在時刻の文字列を生成
-            timestamp_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # 2. テキストのサイズを取得して描画位置を計算
-            (text_w, text_h), _ = cv2.getTextSize(timestamp_text, font, font_scale, thickness)
-            margin = 10
-            pos = (frame.shape[1] - text_w - margin, frame.shape[0] - text_h - margin)
-            
-            # 3. 読みやすさのために、まず黒い影を描画
-            cv2.putText(frame, timestamp_text, (pos[0] + 1, pos[1] + 1), font, font_scale, shadow_color, thickness, cv2.LINE_AA)
-            
-            # 4. 白い文字でタイムスタンプを描画
-            cv2.putText(frame, timestamp_text, pos, font, font_scale, font_color, thickness, cv2.LINE_AA)
-            # ★★★ タイムスタンプ描画処理ここまで ★★★
 
             cv2.imshow(WINDOW_NAME, frame)
             k = cv2.waitKey(1) & 0xff
@@ -216,37 +196,20 @@ def delete_pre_capture_images(output_path, pre_capture_duration, capture_interva
 ### ファイル名をゼロ埋め連番にリネーム
 def rename_files(output_path):
     """
-    フォルダ内のJPGファイルを撮影順（ファイル名の数字）に正しく並べ替え、
-    その上で1から始まる連番にリネームする
+    撮影したJPGファイル名を連番にリネームする
     """
-    print("ファイル名をリネームし、1から始まる連番に振り直します...")    
-    # ファイル名から数字部分を抜き出すための正規表現
-    pattern = re.compile(r'(\d+)\.jpg$')
-
-    # パスから数値を返すための補助関数
-    def get_number_from_path(path):
-        match = pattern.search(os.path.basename(path))
-        if match:
-            return int(match.group(1))
-        return -1 # 万が一、数字が見つからないファイルがあった場合
-
-    # ファイルリストを、ファイル名内の「数値順」で正確にソートする
-    files = sorted(glob.glob(os.path.join(output_path, '*.jpg')), key=get_number_from_path)
-
+    print("ファイル名をリネームしています...")
+    files = sorted(glob.glob(os.path.join(output_path, '*.jpg')))
     total_files = len(files)
     if total_files == 0:
         print("リネーム対象のファイルがありません。")
         return
 
-    # リネーム後のファイル名の桁数を、残ったファイルの総数に合わせて決定
     padding = len(str(total_files))
-    print(f"{total_files}枚の画像を{padding}桁の連番（1から開始）にリネームします...")
+    print(f"{total_files}枚の画像を{padding}桁の連番にリネームします...")
 
     folder_basename = os.path.basename(output_path)
-
-    # enumerateを使い、正しくソートされたリストの順番で「1」からリネーム
     for i, file_path in enumerate(files):
-        # 新しいファイル名を「フォルダ名_連番.jpg」の形式で作成 (例: ..._0001.jpg)
         new_name = os.path.join(output_path, f"{folder_basename}_{i+1:0{padding}d}.jpg")
         os.rename(file_path, new_name)
 
@@ -356,8 +319,8 @@ if __name__ == '__main__':
     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(Mac)
 
     # --- 実行する処理の選択 ---
-    DO_CAPTURE = T
-    DO_DELETE_PRE_CAPTURE = True 
+    DO_CAPTURE = True
+    DO_DELETE_PRE_CAPTURE = True
     DO_RENAME = True
     DO_TIMELAPSE = True # ← ここをTrueにしてGPUエンコードを試す
     DO_DELETE_IMAGES = False # 動画が正しくできていることを確認してからTrueにする
@@ -373,7 +336,7 @@ if __name__ == '__main__':
                 delete_pre_capture_images(output_path_full, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
-            output_path_full = '/mnt/d/datas/test_data/20251015_05' # ← ここを適宜変更
+            output_path_full = '/mnt/d/datas/capture_data/20251009_02' # ← ここを適宜変更
 
         # output_path_fullが正しく設定されている場合のみ後続処理を実行
         if output_path_full and os.path.exists(output_path_full):

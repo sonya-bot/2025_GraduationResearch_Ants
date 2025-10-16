@@ -104,7 +104,7 @@ def capture(output_path, cap, capture_interval, burst_num):
     reader_thread.start()
 
     # --- セーバー・スレッド（ファイルへの保存） ---
-    q = queue.Queue(maxsize=10)
+    q = queue.Queue(maxsize=0)  # 無制限キュー
     def _saver_loop():
         while True:
             path, frame = q.get()
