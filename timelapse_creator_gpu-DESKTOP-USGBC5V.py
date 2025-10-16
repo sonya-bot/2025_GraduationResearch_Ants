@@ -8,7 +8,6 @@ from datetime import datetime
 import queue
 import threading
 import subprocess # FFmpegを呼び出すために追加
-import re # 追加: 正規表現モジュール
 
 # --- 定数定義 ---
 # プレビュー用のウィンドウ名
@@ -79,31 +78,22 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
     def _reader_loop():
         nonlocal latest_frame, ret_value
         while not reader_stopped.is_set():
-            # cap.grab()はデコードせずに高速にフレームをバッファに確保する。
-            # これをループで回し続けることで、ドライバレベルのバッファを常に最新の状態に保つ。
-            ret_grab = cap.grab()
-            
+            ret, frame = cap.read()
             with lock:
-                if ret_grab:
-                    # cap.retrieve()で確保した最新のフレームをデコードして取得する。
-                    ret_retrieve, frame = cap.retrieve()
-                    if ret_retrieve:
-                        latest_frame = frame
-                        ret_value = True
-                        new_frame_event.set() # 取得成功をメインスレッドに通知
-                    else:
-                        ret_value = False
-                        new_frame_event.clear()
+                ret_value = ret
+                if ret:
+                    latest_frame = frame
+                    new_frame_event.set()
                 else:
-                    ret_value = False
                     new_frame_event.clear()
+            time.sleep(0.001)
         print("カメラ読み込みスレッドが停止しました。")
 
     reader_thread = threading.Thread(target=_reader_loop, daemon=True)
     reader_thread.start()
 
     # --- セーバー・スレッド（ファイルへの保存） ---
-    q = queue.Queue(maxsize=10)
+    q = queue.Queue(maxsize=0) # 無制限キュー
     def _saver_loop():
         while True:
             path, frame = q.get()
@@ -147,7 +137,6 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
             # ★★★ ここからタイムスタンプ描画処理 ★★★
             # 1. 現在時刻の文字列を生成
             timestamp_text = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            sequence_text = f"No. {count}"
             
             # 2. テキストのサイズを取得して描画位置を計算
             (text_w, text_h), _ = cv2.getTextSize(timestamp_text, font, font_scale, thickness)
@@ -159,8 +148,6 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
             
             # 4. 白い文字でタイムスタンプを描画
             cv2.putText(frame, timestamp_text, pos, font, font_scale, font_color, thickness, cv2.LINE_AA)
-            # 連番をタイムスタンプの下に描画
-            cv2.putText(frame, sequence_text, (10, 60), font, font_scale, font_color, thickness, cv2.LINE_AA)
             # ★★★ タイムスタンプ描画処理ここまで ★★★
 
             cv2.imshow(WINDOW_NAME, frame)
@@ -228,37 +215,20 @@ def delete_pre_capture_images(output_path, pre_capture_duration, capture_interva
 ### ファイル名をゼロ埋め連番にリネーム
 def rename_files(output_path):
     """
-    フォルダ内のJPGファイルを撮影順（ファイル名の数字）に正しく並べ替え、
-    その上で1から始まる連番にリネームする
+    撮影したJPGファイル名を連番にリネームする
     """
-    print("ファイル名をリネームし、1から始まる連番に振り直します...")    
-    # ファイル名から数字部分を抜き出すための正規表現
-    pattern = re.compile(r'(\d+)\.jpg$')
-
-    # パスから数値を返すための補助関数
-    def get_number_from_path(path):
-        match = pattern.search(os.path.basename(path))
-        if match:
-            return int(match.group(1))
-        return -1 # 万が一、数字が見つからないファイルがあった場合
-
-    # ファイルリストを、ファイル名内の「数値順」で正確にソートする
-    files = sorted(glob.glob(os.path.join(output_path, '*.jpg')), key=get_number_from_path)
-
+    print("ファイル名をリネームしています...")
+    files = sorted(glob.glob(os.path.join(output_path, '*.jpg')))
     total_files = len(files)
     if total_files == 0:
         print("リネーム対象のファイルがありません。")
         return
 
-    # リネーム後のファイル名の桁数を、残ったファイルの総数に合わせて決定
     padding = len(str(total_files))
-    print(f"{total_files}枚の画像を{padding}桁の連番（1から開始）にリネームします...")
+    print(f"{total_files}枚の画像を{padding}桁の連番にリネームします...")
 
     folder_basename = os.path.basename(output_path)
-
-    # enumerateを使い、正しくソートされたリストの順番で「1」からリネーム
     for i, file_path in enumerate(files):
-        # 新しいファイル名を「フォルダ名_連番.jpg」の形式で作成 (例: ..._0001.jpg)
         new_name = os.path.join(output_path, f"{folder_basename}_{i+1:0{padding}d}.jpg")
         os.rename(file_path, new_name)
 
