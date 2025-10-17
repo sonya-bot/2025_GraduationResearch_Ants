@@ -206,23 +206,36 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
 
 
 ### 予備撮影時間時の撮影画像を削除
-def delete_pre_capture_images(output_path, pre_capture_duration, capture_interval, burst_num):
-    """予備撮影時間中に撮影された画像を削除する"""
-    # 予備撮影時間中に撮影された画像の総数を計算 (予備撮影時間 / 撮影間隔) * 1回の間隔で撮影する枚数
+def delete_pre_capture_images(output_path, main_backup_path, pre_capture_duration, capture_interval, burst_num):
+    """
+    予備撮影時間中に撮影された画像を、指定されたメインバックアップフォルダ内に
+    セッションごとのサブフォルダを作成して移動する
+    """
+    # バックアップ先にセッションごとのフォルダを作成
+    session_folder_name = os.path.basename(output_path)
+    backup_folder_path = os.path.join(main_backup_path, session_folder_name)
+    os.makedirs(backup_folder_path, exist_ok=True)
+    print(f"予備撮影画像を '{backup_folder_path}' にバックアップします...")
+
     total_pre_capture_images = int((pre_capture_duration / capture_interval) * burst_num)
-    print(f"予備撮影時間中に撮影された約{total_pre_capture_images}枚の画像を削除します...")
+    print(f"対象となる予備撮影画像は約{total_pre_capture_images}枚です...")
     
+    moved_count = 0
     for i in range(1, total_pre_capture_images + 1):
         file_path = os.path.join(output_path, f"{i:04d}.jpg")
         if os.path.exists(file_path):
-            os.remove(file_path)
-            # 削除ログは大量に出る可能性があるため、コメントアウト。必要に応じて有効化。
-            # print(f"削除しました: {file_path}")
+            try:
+                shutil.move(file_path, backup_folder_path)
+                moved_count += 1
+            except Exception as e:
+                print(f"エラー: ファイルの移動中に問題が発生しました: {file_path} -> {e}")
         else:
-            # 途中で撮影が止まった場合などを考慮し、ファイルが存在しない場合は警告のみに留める
-            print(f"警告: ファイルが見つかりません: {file_path}")
+            print(f"警告: バックアップ対象のファイルが見つかりません: {file_path}")
     
-    print("予備撮影時間中の画像の削除が完了しました。")
+    print(f"予備撮影画像のバックアップが完了しました。{moved_count}枚のファイルを移動しました。")
+
+
+
 
 
 ### ファイル名をゼロ埋め連番にリネーム
@@ -359,13 +372,14 @@ if __name__ == '__main__':
     # --- 撮影設定 ---
     CAMERA_NUM = 0 # カメラ番号
     CAPTURE_INTERVAL = 1.0 # 撮影間隔(秒)
-    PRE_CAPTURE_DURATION = 600 # 予備撮影時間(秒)
+    PRE_CAPTURE_DURATION = 30 # 予備撮影時間(秒)
     BURST_NUM = 2 # 1回の間隔で撮影する枚数
-    CAPTURE_DURATION = 3  # 撮影時間(時間)
+    CAPTURE_DURATION = 0  # 撮影時間(時間)
     
-    OUTPUT_PATH = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
-    # OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_SSD),テスト用
+    # OUTPUT_PATH = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
+    OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_SSD),テスト用
     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(Mac)
+    BACKUP_FOLDER_PATH = "/mnt/d/datas/pre_capture_data"
 
     # --- 実行する処理の選択 ---
     DO_CAPTURE = True
@@ -379,10 +393,11 @@ if __name__ == '__main__':
     try:
         if DO_CAPTURE:
             output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
+            backup_path_full, cap = setup_camera(CAMERA_NUM, BACKUP_FOLDER_PATH)
             if output_path_full and cap:
                 capture(output_path_full, cap, CAPTURE_INTERVAL, BURST_NUM, CAPTURE_DURATION, PRE_CAPTURE_DURATION)
             if DO_DELETE_PRE_CAPTURE:
-                delete_pre_capture_images(output_path_full, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
+                delete_pre_capture_images(output_path_full, BACKUP_FOLDER_PATH, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
             output_path_full = '/mnt/d/datas/test_data/20251015_05' # ← ここを適宜変更
