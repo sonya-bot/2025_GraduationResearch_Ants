@@ -237,8 +237,8 @@ if __name__ == '__main__':
     # OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_SSD),テスト用
 
     # --- 実行する処理の選択 ---
-    DO_CAPTURE = True
-    DO_RENAME = True
+    DO_CAPTURE = False
+    DO_RENAME = False
     DO_TIMELAPSE = True # ← ここをTrueにしてGPUエンコードを試す
     DO_DELETE_IMAGES = False # 動画が正しくできていることを確認してからTrueにする
 
@@ -251,7 +251,7 @@ if __name__ == '__main__':
                 capture(output_path_full, cap, CAPTURE_INTERVAL, CAPTURE_NUM_OF_INTERVAL)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
-            output_path_full = '/mnt/d/datas/capture_data/20251009_02' # ← ここを適宜変更
+            output_path_full = '/mnt/d/datas/capture_data/20251015_03' # ← ここを適宜変更
 
         if DO_RENAME and os.path.exists(output_path_full):
             rename_files(output_path_full)

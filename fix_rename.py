@@ -4,7 +4,7 @@ import glob
 # --- ユーザーが設定する項目 ---
 # 誤ってリネームしてしまった画像ファイルが入っているフォルダのパスを指定してください
 # (例: 'D:/datas/capture_data/20251016_01' や '/Users/user/Desktop/images')
-TARGET_FOLDER = "D:/capture_data/20251015_03"
+TARGET_FOLDER = '/mnt/d/datas/capture_data/20251015_03'  # ← ここを修正
 
 def fix_incorrect_rename(folder_path):
     """

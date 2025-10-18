@@ -9,7 +9,7 @@ import platform
 # ◆◆◆ 設定箇所 ◆◆◆
 
 # 分析対象のファイル名
-FILENAME = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/c00001(edit_2)-position.csv'
+FILENAME =  "d:/analysis_data/20251016_02/20251016_02-position.csv"
 
 # グラフの種類
 USE_LOGLOG_PLOT = True
