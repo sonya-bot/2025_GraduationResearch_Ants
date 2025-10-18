@@ -41,8 +41,9 @@ def plot_histogram_dashboard(input_filename, key_for_threshold):
         df[col].fillna(0, inplace=True)
     print("速度データ列を数値に変換しました。")
 
-    # 閾値データの修得(calculate_thresholds.pyからインポート)
-    threshold_values, _ = calc.get_threshold_values(INPUT_CSV)
+# 閾値データの修得(calculate_thresholds.pyからインポート)
+# 引数で受け取った input_filename を使うように修正
+    threshold_values, _ = calc.get_threshold_values(input_filename)
     if threshold_values is None:
         print("閾値の計算に失敗したため、プログラムを終了します。")
         return
@@ -130,7 +131,7 @@ def plot_histogram_dashboard(input_filename, key_for_threshold):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = '/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/0903/C0006(edit)-position-velocity.csv'
+    INPUT_CSV = "d:/analysis_data/20251016_02/20251016_02-position_velocity.csv"
     KEY = "median_q2"
 
     plot_histogram_dashboard(INPUT_CSV, KEY)
