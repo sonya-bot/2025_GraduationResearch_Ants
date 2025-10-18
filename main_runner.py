@@ -22,7 +22,7 @@ RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワー�
 # --- 基本ファイル設定 ---
 # ここでファイルパスの「ベース」部分を設定すれば、下のファイル名は自動で設定されます。
 # BASE_FILE_PATH = "d:/analysis_data/20251016_02/20251016_02"
-BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251014_01/20251014_01-position.csv" # Macでの実行時
+BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251010_01/20251010_01-position.csv" # Macでの実行時
 
 # --- 各スクリプトの詳細設定 ---
 # 速度計算 (`calculate_velocity.py`) 用
@@ -117,3 +117,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    print("\nすべての処理が終了しました。")

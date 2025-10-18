@@ -27,6 +27,10 @@ def plot_social_network(input_filename, contact_threshold):
     n_individuals = len(individual_ids)
     print(f"{n_individuals} 個体を対象に接触回数を計算します。")
     print(f"接触距離のしきい値: {contact_threshold} ピクセル")
+    # 個体数が1の場合、エラーを表示して終了
+    if n_individuals < 2:
+        print("エラー: 個体が2つ未満のため、接触ネットワークを計算できません。")
+        return
 
     # 3. 接触回数を格納する辞書を準備
     contact_counts = {}
