@@ -55,9 +55,8 @@ def plot_distance_over_time(input_filename, contact_threshold):
         contact_distances = distances[distances <= contact_threshold]
         
         if not contact_frames.empty:
-            # 接触点のy座標を少し上にずらして見やすくする
-            plot_y = contact_distances + (distances.max() * 0.02)
-            ax.plot(contact_frames, plot_y, 'o', color='red', markersize=5, label=f'Contact (<= {contact_threshold} px)')
+            plot_y = np.zeros_like(contact_frames)
+            ax.plot(contact_frames, plot_y, 'o', color='red', markersize=3, label=f'Contact (<= {contact_threshold} px)')
         
         # グラフの体裁を整える
         ax.set_xlabel('Frame', fontsize=12)
@@ -68,6 +67,9 @@ def plot_distance_over_time(input_filename, contact_threshold):
         
         # y軸の範囲を調整して見やすくする
         ax.set_ylim(0, distances.max() * 1.1)
+
+        # Y軸の目盛りを細かくする(nbinsで調整可能)
+        ax.yaxis.set_major_locator(plt.MaxNLocator(nbins=20))
         
         plt.tight_layout()
         plt.show()
