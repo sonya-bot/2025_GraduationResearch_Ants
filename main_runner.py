@@ -3,6 +3,7 @@ import calculate_velocity
 import plot_speed_over_time
 import plot_velocity_distribution
 import plot_msd
+import plot_social_network
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 1. 実行設定 ◆◆◆
@@ -95,6 +96,20 @@ def main():
         print("\n--- [スキップ] 4. MSD計算・描画 ---")
     
     print("\n=== 全ての処理が完了しました ===")
+
+    # --- 5. 個体感ネットワークの計算と描画 ---
+    if RUN_PLOT_SOCIAL_NETWORK:
+        print("\n--- [実行中] 5. 個体ネットワーク描画 ---")
+        # 位置ファイルが存在するかチェック
+        if not os.path.exists(INPUT_POSITION_CSV):
+            print(f"警告: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
+            print("→ ネットワーク計算をスキップします。")
+        else:
+            CONTACT_THRESHOLD = 50.0  # 接触とみなす距離の閾値（ピクセル）
+            plot_social_network.plot_social_network(INPUT_POSITION_CSV, CONTACT_THRESHOLD)
+    else:
+        print("\n--- [スキップ] 5. 個体ネットワーク描画 ---")
+
 
 if __name__ == '__main__':
     main()
