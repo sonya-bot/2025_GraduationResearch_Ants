@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import
 
 def calculate_velocity(input_filename, output_filename):
     """
@@ -10,6 +11,10 @@ def calculate_velocity(input_filename, output_filename):
         input_filename (str): 入力する位置情報CSVファイル名。
         output_filename (str): 出力する速度情報CSVファイル名。
     """
+    if os.path.exists(output_filename):
+        print(f"出力ファイル '{output_filename}' は既に存在しています。速度計算をスキップします。")
+        return
+
     try:
         df_input = pd.read_csv(input_filename)
         print(f"'{input_filename}'を正常に読み込みました。")
@@ -61,7 +66,8 @@ def calculate_velocity(input_filename, output_filename):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = "d:/analysis_data/20251010_01/20251010_01-position.csv"
+    # INPUT_CSV = "d:/analysis_data/20251016_02/20251016_02-position.csv"
+    INPUT_CSV = "/Volumes/100.108.13.8/analysis_data/20251014_01/20251014_01-position.csv" # Macでの実行時
     OUTPUT_CSV = f'{INPUT_CSV.replace("position", "position_velocity")}'
     
     calculate_velocity(INPUT_CSV, OUTPUT_CSV)

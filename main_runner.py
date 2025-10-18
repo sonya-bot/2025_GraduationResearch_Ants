@@ -19,13 +19,14 @@ RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計�
 # -----------------------------------------------------------------------------
 # --- 基本ファイル設定 ---
 # ここでファイルパスの「ベース」部分を設定すれば、下のファイル名は自動で設定されます。
-BASE_FILE_PATH = "d:/analysis_data/20251016_02/20251016_02"
+# BASE_FILE_PATH = "d:/analysis_data/20251016_02/20251016_02"
+BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251014_01/20251014_01-position.csv" # Macでの実行時
 
 # --- 各スクリプトの詳細設定 ---
 # 速度計算 (`calculate_velocity.py`) 用
 # (通常は変更不要です)
-INPUT_POSITION_CSV = f"{BASE_FILE_PATH}-position.csv"
-OUTPUT_VELOCITY_CSV = f"{BASE_FILE_PATH}-position_velocity.csv"
+INPUT_POSITION_CSV = f"{BASE_FILE_PATH}"
+OUTPUT_VELOCITY_CSV = f"{BASE_FILE_PATH}_velocity.csv"
 
 # 速度グラフ (`plot_speed_over_time.py`, `plot_velocity_distribution.py`) 用
 KEY_FOR_THRESHOLD = "median_q2"  # 使用する閾値 ('q1', 'median_q2', 'q3', 'avg_half', または None)

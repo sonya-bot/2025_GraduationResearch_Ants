@@ -56,7 +56,8 @@ def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
 
 
     # 閾値データの修得(calculate_thresholds.pyからインポート)
-    threshold_values, _ = calc.get_threshold_values(INPUT_CSV)
+    # main_runner.py から渡されたファイル名を使うように修正
+    threshold_values, _ = calc.get_threshold_values(input_filename)
     if threshold_values is None:
         print("閾値の計算に失敗したため、プログラムを終了します。") 
         return
@@ -148,7 +149,7 @@ def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = "d:/analysis_data/20251010_01/20251010_01-position_velocity.csv"
+    INPUT_CSV = "d:/analysis_data/20251016_02/20251016_02-position_velocity.csv"
     # 使用する閾値 KEY を選択
     # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
     # しきい値を使用しない場合は None に設定

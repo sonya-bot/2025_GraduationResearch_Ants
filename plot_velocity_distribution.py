@@ -42,7 +42,8 @@ def plot_histogram_dashboard(input_filename, key_for_threshold):
     print("速度データ列を数値に変換しました。")
 
     # 閾値データの修得(calculate_thresholds.pyからインポート)
-    threshold_values, _ = calc.get_threshold_values(INPUT_CSV)
+    # main_runner.py から渡されたファイル名を使うように修正
+    threshold_values, _ = calc.get_threshold_values(input_filename)
     if threshold_values is None:
         print("閾値の計算に失敗したため、プログラムを終了します。")
         return

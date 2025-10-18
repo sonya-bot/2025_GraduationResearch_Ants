@@ -206,14 +206,11 @@ def capture(output_path, cap, capture_interval, burst_num, capture_duration, pre
 
 
 ### 予備撮影時間時の撮影画像を削除
-def delete_pre_capture_images(output_path, main_backup_path, pre_capture_duration, capture_interval, burst_num):
+def delete_pre_capture_images(output_path, backup_folder_path, pre_capture_duration, capture_interval, burst_num):
     """
     予備撮影時間中に撮影された画像を、指定されたメインバックアップフォルダ内に
     セッションごとのサブフォルダを作成して移動する
     """
-    # バックアップ先にセッションごとのフォルダを作成
-    session_folder_name = os.path.basename(output_path)
-    backup_folder_path = os.path.join(main_backup_path, session_folder_name)
     os.makedirs(backup_folder_path, exist_ok=True)
     print(f"予備撮影画像を '{backup_folder_path}' にバックアップします...")
 
@@ -233,9 +230,6 @@ def delete_pre_capture_images(output_path, main_backup_path, pre_capture_duratio
             print(f"警告: バックアップ対象のファイルが見つかりません: {file_path}")
     
     print(f"予備撮影画像のバックアップが完了しました。{moved_count}枚のファイルを移動しました。")
-
-
-
 
 
 ### ファイル名をゼロ埋め連番にリネーム
@@ -372,14 +366,14 @@ if __name__ == '__main__':
     # --- 撮影設定 ---
     CAMERA_NUM = 0 # カメラ番号
     CAPTURE_INTERVAL = 1.0 # 撮影間隔(秒)
-    PRE_CAPTURE_DURATION = 30 # 予備撮影時間(秒)
+    PRE_CAPTURE_DURATION = 600 # 予備撮影時間(秒)
     BURST_NUM = 2 # 1回の間隔で撮影する枚数
-    CAPTURE_DURATION = 0  # 撮影時間(時間)
+    CAPTURE_DURATION = 1.5  # 撮影時間(時間)
     
     # OUTPUT_PATH = "/mnt/d/datas/capture_data/" #ファイルパス(Windows_SSD)
     OUTPUT_PATH = "/mnt/d/datas/test_data" #ファイルパス(Windows_SSD),テスト用
     # OUTPUT_PATH = "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data" #ファイルパス(Mac)
-    BACKUP_FOLDER_PATH = "/mnt/d/datas/pre_capture_data"
+    BACKUP_FOLDER_PATH = "/mnt/d/datas/pre_capture_data" 
 
     # --- 実行する処理の選択 ---
     DO_CAPTURE = True
@@ -393,10 +387,11 @@ if __name__ == '__main__':
     try:
         if DO_CAPTURE:
             output_path_full, cap = setup_camera(CAMERA_NUM, OUTPUT_PATH)
-            backup_path_full, cap = setup_camera(CAMERA_NUM, BACKUP_FOLDER_PATH)
             if output_path_full and cap:
                 capture(output_path_full, cap, CAPTURE_INTERVAL, BURST_NUM, CAPTURE_DURATION, PRE_CAPTURE_DURATION)
             if DO_DELETE_PRE_CAPTURE:
+                session_folder_name = os.path.basename(output_path_full)
+                backup_folder_path = os.path.join(BACKUP_FOLDER_PATH, session_folder_name)
                 delete_pre_capture_images(output_path_full, BACKUP_FOLDER_PATH, PRE_CAPTURE_DURATION, CAPTURE_INTERVAL, BURST_NUM)
         else:
             # 撮影しない場合は、処理対象のフォルダをここに手動で指定
