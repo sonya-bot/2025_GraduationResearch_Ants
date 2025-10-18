@@ -13,6 +13,7 @@ RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計�
 RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラフを描画する
 RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
 RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
+RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 2. パラメータ設定 ◆◆◆
@@ -35,6 +36,9 @@ REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
 
 # MSD (`plot_msd.py`) 用
 USE_LOGLOG_PLOT = True           # MSDグラフを両対数プロットにするか (True / False)
+
+# 個体ネットワーク (`plot_social_network.py`) 用
+CONTACT_THRESHOLD = 50.0         # 接触とみなす距離の閾値（ピクセル）,閾値以下の距離を接触とみなす
 
 
 # -----------------------------------------------------------------------------
@@ -105,8 +109,8 @@ def main():
             print(f"警告: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
             print("→ ネットワーク計算をスキップします。")
         else:
-            CONTACT_THRESHOLD = 50.0  # 接触とみなす距離の閾値（ピクセル）
-            plot_social_network.plot_social_network(INPUT_POSITION_CSV, CONTACT_THRESHOLD)
+            contact_threshold = CONTACT_THRESHOLD
+            plot_social_network.plot_social_network(INPUT_POSITION_CSV, contact_threshold)
     else:
         print("\n--- [スキップ] 5. 個体ネットワーク描画 ---")
 
