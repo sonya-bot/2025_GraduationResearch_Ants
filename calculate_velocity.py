@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import
+import os
 
 def calculate_velocity(input_filename, output_filename):
     """
