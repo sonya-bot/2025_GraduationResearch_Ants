@@ -4,6 +4,7 @@ import plot_speed_over_time
 import plot_velocity_distribution
 import plot_msd
 import plot_social_network
+import plot_distance_over_time
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 1. 実行設定 ◆◆◆
@@ -14,6 +15,7 @@ RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラ�
 RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
 RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
 RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
+RUN_PLOT_DISTANCE_OVER_TIME = True    # True: 個体ペア間の距離の時間変化グラフを描画する
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 2. パラメータ設定 ◆◆◆
@@ -113,6 +115,17 @@ def main():
             plot_social_network.plot_social_network(INPUT_POSITION_CSV, contact_threshold)
     else:
         print("\n--- [スキップ] 5. 個体ネットワーク描画 ---")
+
+    # --- 6. 個体間距離の時間変化グラフの描画 ---
+    if RUN_PLOT_DISTANCE_OVER_TIME:
+        print("\n--- [実行中] 6. 個体間距離時間変化グラフ描画 ---")
+        # 位置ファイルが存在するかチェック
+        if not os.path.exists(INPUT_POSITION_CSV):
+            print(f"警告: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
+            print("→ 距離グラフ描画をスキップします。")
+        else:
+            contact_threshold = CONTACT_THRESHOLD
+            plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, contact_threshold)
 
 
 if __name__ == '__main__':
