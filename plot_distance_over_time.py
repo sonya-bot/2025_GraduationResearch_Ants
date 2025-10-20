@@ -68,8 +68,8 @@ def plot_distance_over_time(input_filename, contact_threshold):
         # y軸の範囲を調整して見やすくする
         ax.set_ylim(0, distances.max() * 1.1)
 
-        # Y軸の目盛りを細かくする(nbinsで調整可能)
-        ax.yaxis.set_major_locator(plt.MaxNLocator(nbins=20))
+        # Y軸の目盛りを細かくする (最大10個の目盛りを推奨)
+        ax.yaxis.set_major_locator(plt.MaxNLocator(nbins=10))
         
         plt.tight_layout()
         plt.show()
@@ -79,5 +79,6 @@ if __name__ == '__main__':
     # 1. 分析対象の位置データファイル
     INPUT_CSV = "/Volumes/100.108.13.8/analysis_data/20251015_03/20251015_03-position.csv" # Macでの実行時
     CONTACT_THRESHOLD_PIXELS = plot_social_network.CONTACT_THRESHOLD_PIXELS
+    # CONTACT_THRESHOLD_PIXELS = 50.0  # ピクセル単位の接触しきい値
     # ◆◆◆ 実行 ◆◆◆
     plot_distance_over_time(INPUT_CSV, CONTACT_THRESHOLD_PIXELS)
