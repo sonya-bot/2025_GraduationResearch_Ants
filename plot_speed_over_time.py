@@ -7,6 +7,8 @@ import platform
 import calculate_thresholds as calc # 閾値計算用のモジュールをインポート
 from matplotlib.ticker import MaxNLocator, LogLocator
 
+USE_LOG_SCALE = True # 縦軸を対数表示するかどうか
+
 def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers, use_log_scale):
     # データの読み込み
     try:
@@ -179,7 +181,6 @@ if __name__ == '__main__':
     # しきい値を使用しない場合は None に設定
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
-    USE_LOG_SCALE = True # 縦軸を対数表示するかどうか
     # 使用する閾値 KEY を選択
     KEY = "median_q2"
 

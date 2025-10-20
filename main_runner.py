@@ -11,7 +11,7 @@ import plot_distance_over_time
 # 実行したい分析を True に設定してください。
 # -----------------------------------------------------------------------------
 RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計算する
-RUN_PLOT_SPEED_OVER_TIME = False       # True: 時間ごとの速度変化グラフを描画する
+RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラフを描画する
 RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
 RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
 RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
@@ -35,6 +35,7 @@ OUTPUT_VELOCITY_CSV = f"{BASE_FILE_PATH}_velocity.csv"
 # 速度グラフ (`plot_speed_over_time.py`, `plot_velocity_distribution.py`) 用
 KEY_FOR_THRESHOLD = "median_q2"  # 使用する閾値 ('q1', 'median_q2', 'q3', 'avg_half', または None)
 REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
+USE_LOG_SCALE = True            # 縦軸を対数表示するか (True / False)
 
 # MSD (`plot_msd.py`) 用
 USE_LOGLOG_PLOT = True           # MSDグラフを両対数プロットにするか (True / False)
@@ -71,7 +72,7 @@ def main():
             print(f"警告: 速度ファイル '{OUTPUT_VELOCITY_CSV}' が見つかりません。")
             print("→ グラフ描画をスキップします。先に速度計算を実行してください。")
         else:
-            plot_speed_over_time.plot_speed_over_time(OUTPUT_VELOCITY_CSV, KEY_FOR_THRESHOLD, REMOVE_OUTLIERS)
+            plot_speed_over_time.plot_speed_over_time(OUTPUT_VELOCITY_CSV, KEY_FOR_THRESHOLD, REMOVE_OUTLIERS, USE_LOG_SCALE)
     else:
         print("\n--- [スキップ] 2. 時間ごと速度グラフ描画 ---")
 
