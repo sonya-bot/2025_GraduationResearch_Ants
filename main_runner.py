@@ -11,7 +11,7 @@ import plot_distance_over_time
 # 実行したい分析を True に設定してください。
 # -----------------------------------------------------------------------------
 RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計算する
-RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラフを描画する
+RUN_PLOT_SPEED_OVER_TIME = False       # True: 時間ごとの速度変化グラフを描画する
 RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
 RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
 RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
