@@ -5,8 +5,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import platform
 import calculate_thresholds as calc # 閾値計算用のモジュールをインポート
+from matplotlib.ticker import MaxNLocator, LogLocator
 
-def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
+def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers, use_log_scale):
     # データの読み込み
     try:
         df = pd.read_csv(input_filename)
@@ -99,6 +100,11 @@ def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
     # 図全体のタイトル
     fig.suptitle(f'Speed over Time (threshold: {key_for_threshold}, {selected_threshold})', fontsize=16)
 
+    # データの最大値に少し余裕を持たせる
+    max_speed_in_data = df[speed_cols].max().max() * 1.1
+    # 表示したい上限 (100) とデータの最大値のうち、大きい方を採用
+    y_axis_top_limit = max(max_speed_in_data, 100)
+
     # 最初のグラフ(axes_flat[0])に、全個体の速さを重ねてプロット
     ax_overlay = axes_flat[0]
     ax_overlay.set_title('All Individuals')
@@ -106,6 +112,16 @@ def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
     ax_overlay.set_ylabel('Speed (pixels/frame)') # 単位を追記
     ax_overlay.set_ylim(0, df[speed_cols].max().max())   # 縦軸の統一
     ax_overlay.grid(True, linestyle='--', alpha=0.6)
+
+    if use_log_scale:
+            print("縦軸を対数表示に設定します。")
+            ax_overlay.set_yscale('log')
+            ax_overlay.set_ylim(bottom=0.1, top=y_axis_top_limit)
+            ax_overlay.yaxis.set_major_locator(LogLocator(numticks=10))
+    else:
+            print
+            ax_overlay.set_ylim(bottom=0, top=y_axis_top_limit)
+            ax_overlay.yaxis.set_major_locator(MaxNLocator(nbins=10))
 
     # ループして、同じaxに色分けしてプロット
     for i_id in individual_ids:
@@ -131,6 +147,14 @@ def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
         ax.set_ylim(0, df[speed_cols].max().max())   # 縦軸の統一
         ax.grid(True, linestyle='--', alpha=0.6)
 
+        if use_log_scale:
+            ax.set_yscale('log')
+            ax.set_ylim(bottom=0.1, top=y_axis_top_limit)
+            ax.yaxis.set_major_locator(LogLocator(numticks=10))
+        else:
+            ax.set_ylim(bottom=0, top=y_axis_top_limit)
+            ax.yaxis.set_major_locator(MaxNLocator(nbins=10))
+
     # 余った描画領域を非表示にする
     # # ループの開始を n_individuals + 1に修正
     # for i in range(n_individuals + 1, len(axes_flat)):
@@ -149,14 +173,14 @@ def plot_speed_over_time(input_filename, key_for_threshold , remove_outliers):
 
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = "d:/analysis_data/20251016_02/20251016_02-position_velocity.csv"
+    INPUT_CSV = "/Volumes/100.108.13.8/analysis_data/20251016_02/20251016_02-position_velocity.csv"
     # 使用する閾値 KEY を選択
     # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
     # しきい値を使用しない場合は None に設定
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
-    
+    USE_LOG_SCALE = True # 縦軸を対数表示するかどうか
     # 使用する閾値 KEY を選択
     KEY = "median_q2"
-    
-    plot_speed_over_time(INPUT_CSV, KEY, remove_outliers=REMOVE_OUTLIERS)
+
+    plot_speed_over_time(INPUT_CSV, KEY, remove_outliers=REMOVE_OUTLIERS, use_log_scale=USE_LOG_SCALE)
