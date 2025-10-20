@@ -24,7 +24,7 @@ RUN_PLOT_DISTANCE_OVER_TIME = True    # True: 個体ペア間の距離の時間�
 # --- 基本ファイル設定 ---
 # ここでファイルパスの「ベース」部分を設定すれば、下のファイル名は自動で設定されます。
 # BASE_FILE_PATH = "d:/analysis_data/20251016_02/20251016_02"
-BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251010_01/20251010_01-position.csv" # Macでの実行時
+BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251016_02/20251016_02-position.csv" # Macでの実行時
 
 # --- 各スクリプトの詳細設定 ---
 # 速度計算 (`calculate_velocity.py`) 用
@@ -50,6 +50,11 @@ CONTACT_THRESHOLD = 50.0         # 接触とみなす距離の閾値（ピクセ
 def main():
     """設定に基づいて各分析処理を実行するメイン関数"""
     print("=== 分析処理を開始します ===")
+    # --- 0. 入力ファイルが存在するかチェック ---
+    if not os.path.exists(INPUT_POSITION_CSV):
+        print(f"エラー: 入力ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
+        print("→ すべての処理を中止します。")
+        return
 
     # --- 1. 速度の計算 ---
     if RUN_CALCULATE_VELOCITY:
