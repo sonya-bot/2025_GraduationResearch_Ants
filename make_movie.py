@@ -105,8 +105,11 @@ if __name__ == '__main__':
     
     # --- 撮影設定 ---
     # INPUT_PATH = "/mnt/d/datas/test_data/20251015_05"
-    INPUT_PATH =  "/Users/sonya/Library/CloudStorage/OneDrive-HiroshimaCityUniversity/2025/UMATracker/datas/test_data/20251015_08"
-
+    # 動画ファイルをカンマカンマ区切りでリスト形式として選択
+    INPUT_PATHS =  [
+        "/mnt/d/datas/pre_capture_data/20251030_01",
+        "/mnt/d/datas/pre_capture_data/20251030_02",
+    ]
     # --- 実行する処理の選択 ---
     USE_GPU = True  # GPUを使用してFFmpegで動画を作成するかどうか
 
@@ -124,11 +127,23 @@ if __name__ == '__main__':
                 print("FFmpegがGPUアクセラレーション(cuda)をサポートしています。GPUモードで実行します。")
                 # USE_GPU = True
 
-            if os.path.exists(INPUT_PATH) and os.path.isdir(INPUT_PATH):
-                print(f"タイムラプス動画の作成を開始します \n 動画ファイルは '{INPUT_PATH}' に保存されます。")
-                timelaps(INPUT_PATH, USE_GPU)
+        print(f"\n合計 {len(INPUT_PATHS)} 件のフォルダを処理します。")
+        
+        for i, input_path in enumerate(INPUT_PATHS):
+            print(f"\n--- 処理 {i+1}/{len(INPUT_PATHS)}: {input_path} ---")
+
+            if os.path.exists(input_path) and os.path.isdir(input_path):
+                print(f"タイムラプス動画の作成を開始します \n 動画ファイルは '{ input_path}' に保存されます。")
+                try:
+                    timelaps(input_path, USE_GPU)
+                except Exception as e_loop:
+                    # timelaps関数内でエラーが起きても、ここでキャッチして次のループに進む
+                    print(f"エラー: {input_path} の処理中にエラーが発生しました: {e_loop}")
+                    print("次のフォルダの処理に進みます。")
             else:
-                print(f"エラー: 指定されたパス '{INPUT_PATH}' が存在しません。")
+                print(f"エラー: 指定されたパス '{input_path}' が存在しません。")
+                print("次のフォルダの処理に進みます")
+
     except Exception as e:
         print(f"FFmpegのチェック中にエラーが発生しました: {e}")
         USE_GPU = False
