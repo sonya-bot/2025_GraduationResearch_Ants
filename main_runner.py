@@ -5,17 +5,19 @@ import plot_velocity_distribution
 import plot_msd
 import plot_social_network
 import plot_distance_over_time
+import plot_COS_Over_Time
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 1. 実行設定 ◆◆◆
 # 実行したい分析を True に設定してください。
 # -----------------------------------------------------------------------------
-RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計算する
-RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラフを描画する
-RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
-RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
-RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
-RUN_PLOT_DISTANCE_OVER_TIME = True    # True: 個体ペア間の距離の時間変化グラフを描画する
+RUN_CALCULATE_VELOCITY = False         # True: 位置データから速度を計算する
+RUN_PLOT_SPEED_OVER_TIME = False       # True: 時間ごとの速度変化グラフを描画する
+RUN_PLOT_VELOCITY_DISTRIBUTION = False # True: 速度の分布（ヒストグラム）を描画する
+RUN_PLOT_MSD = False                   # True: MSD（平均二乗変位）を計算・描画する
+RUN_PLOT_SOCIAL_NETWORK = False        # True: 個体間の接触ネットワークを計算・描画する
+RUN_PLOT_DISTANCE_OVER_TIME = False    # True: 個体ペア間の距離の時間変化グラフを描画する
+RUN_PLOT_COS_OVER_TIME = True
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 2. パラメータ設定 ◆◆◆
@@ -32,16 +34,15 @@ BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251016_02/20251016_02-po
 INPUT_POSITION_CSV = f"{BASE_FILE_PATH}"
 OUTPUT_VELOCITY_CSV = f"{BASE_FILE_PATH}_velocity.csv"
 
-# 速度グラフ (`plot_speed_over_time.py`, `plot_velocity_distribution.py`) 用
-KEY_FOR_THRESHOLD = "median_q2"  # 使用する閾値 ('q1', 'median_q2', 'q3', 'avg_half', または None)
+VELOCITY_THRESHOLD = "median_q2"  # 使用する速度の閾値 ('q1', 'median_q2', 'q3', 'avg_half', または None)
+CONTACT_THRESHOLD = 50.0         # 接触とみなす距離の閾値（ピクセル）,閾値以下の距離を接触とみなす
+
 REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
 USE_LOG_SCALE = True            # 縦軸を対数表示するか (True / False)
 
 # MSD (`plot_msd.py`) 用
 USE_LOGLOG_PLOT = True           # MSDグラフを両対数プロットにするか (True / False)
 
-# 個体ネットワーク (`plot_social_network.py`) 用
-CONTACT_THRESHOLD = 50.0         # 接触とみなす距離の閾値（ピクセル）,閾値以下の距離を接触とみなす
 
 
 # -----------------------------------------------------------------------------
@@ -72,7 +73,7 @@ def main():
             print(f"警告: 速度ファイル '{OUTPUT_VELOCITY_CSV}' が見つかりません。")
             print("→ グラフ描画をスキップします。先に速度計算を実行してください。")
         else:
-            plot_speed_over_time.plot_speed_over_time(OUTPUT_VELOCITY_CSV, KEY_FOR_THRESHOLD, REMOVE_OUTLIERS, USE_LOG_SCALE)
+            plot_speed_over_time.plot_speed_over_time(OUTPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, REMOVE_OUTLIERS, USE_LOG_SCALE)
     else:
         print("\n--- [スキップ] 2. 時間ごと速度グラフ描画 ---")
 
@@ -87,7 +88,7 @@ def main():
             # plot_velocity_distribution.py 内でグローバル変数を参照しているため、
             # 実行時に設定値を渡すように元のコードを少し変更するか、
             # ここで値を設定する必要があります。今回は関数に引数を渡します。
-            plot_velocity_distribution.plot_histogram_dashboard(OUTPUT_VELOCITY_CSV, KEY_FOR_THRESHOLD)
+            plot_velocity_distribution.plot_histogram_dashboard(OUTPUT_VELOCITY_CSV, VELOCITY_THRESHOLD)
     else:
         print("\n--- [スキップ] 3. 速度分布グラフ描画 ---")
 
@@ -133,6 +134,14 @@ def main():
             contact_threshold = CONTACT_THRESHOLD
             plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, contact_threshold)
 
+    # --- 7. COSの値の時間変化グラフの描画 ---
+    if RUN_PLOT_COS_OVER_TIME:
+        print("\n--- [実行中] 7. COSの値の時間変化グラフの描画 ---")
+        input_position_csv = INPUT_POSITION_CSV
+        input_velocity_csv = OUTPUT_VELOCITY_CSV
+        velocity_threshold = VELOCITY_THRESHOLD
+        contact_threshold = CONTACT_THRESHOLD
+        plot_COS_Over_Time.plot_cos_over_time(input_position_csv, input_velocity_csv, velocity_threshold, contact_threshold, REMOVE_OUTLIERS)
 
 if __name__ == '__main__':
     main()

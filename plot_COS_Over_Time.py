@@ -10,7 +10,7 @@ from matplotlib.ticker import MaxNLocator, LogLocator
 from itertools import combinations
 
 
-def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold, distance_threshold,remove_outliers):
+def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers):
 # 1.データの読み込み
     # 位置データの読み込み
     try:
@@ -126,7 +126,7 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
         # 距離が contact_threshold 以下のフレームを特定 (True/FalseのSeries)
         total_frames = len(df_pos)
         frames = df_pos['position']
-        contact_frames = frames[distances <= distance_threshold]
+        contact_frames = frames[distances <= contact_threshold]
         
         print(f"  - 接触判定 (全 {total_frames} Frame) を実行しました。")
 
@@ -160,7 +160,7 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
         # [点グラフ] 接触点をY=0（横軸上）にプロット
         # Y軸の値を0にするために、contact_times_sec と同じ長さの0の配列を生成
         plot_y = np.zeros_like(contact_times_min)
-        ax.plot(contact_times_min, plot_y, 'o', color='red', markersize=3, label=f'Contact (<= {distance_threshold} px)')
+        ax.plot(contact_times_min, plot_y, 'o', color='red', markersize=3, label=f'Contact (<= {contact_threshold} px)')
 
         # タイトル (ペアごとに動的)
         ax.set_title(f'COS and Contact over Time (ID:{id1} , ID:{id2})', fontsize=14)
@@ -204,6 +204,6 @@ if __name__ == "__main__":
     VELOCITY_THRESHOLD = "avg_half"
     # 接触判定に使用する距離のしきい値DISTANCE＿THRESHOLD を設定
     # CONTACT_THRESHOLD = plot_social_network.CONTACT_THRESHOLD_PIXELS
-    DISTANCE_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
+    CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
 
-    plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, DISTANCE_THRESHOLD, remove_outliers=REMOVE_OUTLIERS)
+    plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS)
