@@ -6,6 +6,7 @@ import plot_msd
 import plot_social_network
 import plot_distance_over_time
 import plot_COS_Over_Time
+import plot_Contact_Spectrum
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 1. 実行設定 ◆◆◆
@@ -18,6 +19,7 @@ RUN_PLOT_MSD = False                   # True: MSD（平均二乗変位）を計
 RUN_PLOT_SOCIAL_NETWORK = False        # True: 個体間の接触ネットワークを計算・描画する
 RUN_PLOT_DISTANCE_OVER_TIME = False    # True: 個体ペア間の距離の時間変化グラフを描画する
 RUN_PLOT_COS_OVER_TIME = True
+RUN_PLOT_CONTACT_SPECTRUM = True
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 2. パラメータ設定 ◆◆◆
@@ -145,6 +147,15 @@ def main():
         plot_COS_Over_Time.plot_cos_over_time(input_position_csv, input_velocity_csv, velocity_threshold, contact_threshold, REMOVE_OUTLIERS)
     else:
         print("\n--- [スキップ] 7. COSの値の時間変化グラフの描画 ---")
+
+    # --- 8. 接触頻度のパワースペクトルグラフの描画 ---
+    if RUN_PLOT_CONTACT_SPECTRUM:
+        print("\n--- [実行中] 8. 接触頻度のパワースペクトルグラフの描画 ---")
+        input_position_csv = INPUT_POSITION_CSV
+        contact_threshold = CONTACT_THRESHOLD
+        plot_Contact_Spectrum.plot_contact_spectrum(input_position_csv, contact_threshold)
+    else:
+        print("\n--- [スキップ] 8. 接触頻度のパワースペクトルグラフの描画 ---")
 
 if __name__ == '__main__':
     main()
