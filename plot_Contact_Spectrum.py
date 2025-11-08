@@ -1,0 +1,138 @@
+# -*- coding: utf-8 -*-
+
+import pandas as pd
+import numpy as np
+import numpy.fft as fft # ▼ 要件定義(v5) 6. Numpy FFTをインポート
+import matplotlib.pyplot as plt
+import platform
+from itertools import combinations 
+
+def plot_contact_spectrum(position_csv_path, contact_threshold):
+    """
+    位置データからペア間の接触シグナルを生成し、
+    Numpy FFT を使ってパワースペクトルを計算・描画する。
+    """
+
+# 1.データ入力
+    try:
+        #
+        df_pos = pd.read_csv(position_csv_path)
+        print(f"'{position_csv_path}'を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {position_csv_path}")
+        return
+    
+# 2.個体IDの特定と個体ごとの反復処理
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+
+    n_individuals = len(individual_ids)
+    if n_individuals <= 1:
+        print(f"エラー: 検出された個体数が {n_individuals} のため、グラフを作成できません。")
+        print("プログラムを終了します")
+        return
+    
+    # 全ての個体のペアについてループ処理
+    pair_combinations = list(combinations(individual_ids, 2))
+
+    print(f"{n_individuals} 個体を対象に、全{len(pair_combinations)}ペアのスペクトルグラフを作成します。")
+
+# 3.FPSの定義
+    FPS = 2.0 # 1フレーム=1/2秒
+    sample_spacing_second = 1.0 / FPS # 周波数計算用にサンプリング間隔(秒)を計算
+    # 時間を時間(秒)から時間(分)に変更
+    sample_spacing_minutes = sample_spacing_second / 60 
+    print(f"  - サンプリング周波数: {FPS} Hz (サンプリング間隔: {sample_spacing_minutes} m)")
+
+# 4.接触の判定
+    for id1, id2 in pair_combinations:
+        print(f"\n処理中: ペア (ID: {id1}, ID: {id2})")
+
+
+    # 位置データ (df_pos) から、このペアのx, y座標を取得
+        pos_A_x = f'x{id1}'
+        pos_A_y = f'y{id1}'
+        pos_B_x = f'x{id2}'
+        pos_B_y = f'y{id2}'
+
+        # 座標カラムが存在するかチェック
+        if not all(col in df_pos.columns for col in [pos_A_x, pos_A_y, pos_B_x, pos_B_y]):
+            print(f"エラー: 座標カラムが見つかりません。このペアをスキップします。")
+            continue
+
+        # .to_numpy() を使って高速なNumpy計算
+        pos_A = df_pos[[pos_A_x, pos_A_y]].to_numpy()
+        pos_B = df_pos[[pos_B_x, pos_B_y]].to_numpy()
+
+        # 全フレームのユークリッド距離を計算
+        distances = np.sqrt(np.sum((pos_A - pos_B)**2, axis=1))
+        
+        # 距離が contact_threshold 以下のフレームを特定 (True/FalseのSeries)
+        total_frames = len(df_pos)
+        frames = df_pos['position']
+        contact_frames = frames[distances <= contact_threshold]
+        
+        # 距離が distance_threshold 以下のフレームを 1 (接触), それ以外を 0 (非接触) とする
+        contact_signal = (distances <= contact_threshold).astype(int)
+        
+        total_frames = len(df_pos) #
+        contact_frames_count = contact_signal.sum()
+                
+        print(f"  - 接触判定 (全 {total_frames} Frame) を実行しました。")
+    
+# 5.フーリエ変換の実行
+        # サンプリング数
+        N = len(contact_signal)
+
+        # 実フーリエ変換
+        F = np.fft.rfft(contact_signal) * (2/N)
+
+        # 周波数軸の値を計算
+        freq_per_min = fft.rfftfreq(N, d=sample_spacing_minutes)
+
+        # 周波数スペクトルの複素数を絶対値に変換
+        F_abs = np.abs(F)
+        # 見やすいように常用対数に変換
+        F_log = np.log10(F_abs)
+
+        print(f"  - 振幅スペクトル (X軸: 回/分, Y軸: Log Amplitude) を計算しました。")
+
+# 6.グラフの描画
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        # [線グラフ] 振幅スペクトルを描画
+        ax.plot(freq_per_min, F_log, linewidth=1.0)
+        
+        # グラフの体裁
+        ax.set_title(f'Contact Spectrum (ID:{id1} , {id2})', fontsize=14)
+        
+        # X軸 (線形スケール)
+        ax.set_xlabel('Frequency (/min)', fontsize=12) #
+        
+        # X軸の表示範囲を調整 (0 Hz (直流成分) を除外して表示)
+        # (0.01 回/分 から表示)
+        # ax.set_xlim(0.01, freq_per_min.max()) 
+        ax.set_xlim(-1,10)
+        
+        # Y軸 (対数変換済みのため、スケールは 'linear')
+        ax.set_ylabel('Log Amplitude', fontsize=12) #
+        
+        ax.grid(True, linestyle='--', alpha=0.6)
+        
+        # グラフの表示 (ペアごとに1枚ずつ)
+        plt.tight_layout()
+        plt.show()
+
+print("全てのペアの処理が完了しました")
+
+
+
+# メイン処理
+if __name__ == "__main__":
+    # 位置データの入力
+    INPUT_POSITION_CSV = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv"
+    # 接触判定に使用するしきい値
+    CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
+
+    # 関数を呼び出し
+    plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD)
