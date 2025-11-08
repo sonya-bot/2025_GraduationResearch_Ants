@@ -107,8 +107,7 @@ def main():
                 plot_msd.plot_msd(msd_data, INPUT_POSITION_CSV)
     else:
         print("\n--- [スキップ] 4. MSD計算・描画 ---")
-    
-    print("\n=== 全ての処理が完了しました ===")
+
 
     # --- 5. 個体感ネットワークの計算と描画 ---
     if RUN_PLOT_SOCIAL_NETWORK:
@@ -134,7 +133,7 @@ def main():
             contact_threshold = CONTACT_THRESHOLD
             plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, contact_threshold)
     else:
-        print("\n--- [実行中] 6. 個体間距離時間変化グラフ描画 ---")
+        print("\n--- [スキップ] 6. 個体間距離時間変化グラフ描画 ---")
 
     # --- 7. COSの値の時間変化グラフの描画 ---
     if RUN_PLOT_COS_OVER_TIME:
@@ -145,7 +144,7 @@ def main():
         contact_threshold = CONTACT_THRESHOLD
         plot_COS_Over_Time.plot_cos_over_time(input_position_csv, input_velocity_csv, velocity_threshold, contact_threshold, REMOVE_OUTLIERS)
     else:
-        print("\n--- [実行中] 7. COSの値の時間変化グラフの描画 ---")
+        print("\n--- [スキップ] 7. COSの値の時間変化グラフの描画 ---")
 
 if __name__ == '__main__':
     main()
