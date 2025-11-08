@@ -26,7 +26,7 @@ RUN_PLOT_COS_OVER_TIME = True
 # --- 基本ファイル設定 ---
 # ここでファイルパスの「ベース」部分を設定すれば、下のファイル名は自動で設定されます。
 # BASE_FILE_PATH = "d:/analysis_data/20251016_02/20251016_02"
-BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251016_02/20251016_02-position.csv" # Macでの実行時
+BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv" # Macでの実行時
 
 # --- 各スクリプトの詳細設定 ---
 # 速度計算 (`calculate_velocity.py`) 用
@@ -133,6 +133,8 @@ def main():
         else:
             contact_threshold = CONTACT_THRESHOLD
             plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, contact_threshold)
+    else:
+        print("\n--- [実行中] 6. 個体間距離時間変化グラフ描画 ---")
 
     # --- 7. COSの値の時間変化グラフの描画 ---
     if RUN_PLOT_COS_OVER_TIME:
@@ -142,6 +144,8 @@ def main():
         velocity_threshold = VELOCITY_THRESHOLD
         contact_threshold = CONTACT_THRESHOLD
         plot_COS_Over_Time.plot_cos_over_time(input_position_csv, input_velocity_csv, velocity_threshold, contact_threshold, REMOVE_OUTLIERS)
+    else:
+        print("\n--- [実行中] 7. COSの値の時間変化グラフの描画 ---")
 
 if __name__ == '__main__':
     main()
