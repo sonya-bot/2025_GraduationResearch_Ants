@@ -1,0 +1,209 @@
+# -*- coding utf-8 -*-
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import platform
+import calculate_thresholds # 閾値計算用のモジュールをインポート
+import plot_social_network
+from matplotlib.ticker import MaxNLocator, LogLocator
+from itertools import combinations
+
+
+def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold, distance_threshold,remove_outliers):
+# 1.データの読み込み
+    # 位置データの読み込み
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+        print(f"'{position_csv_path}'を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {position_csv_path}")
+        return
+    # 速度データの読み込み
+    try:
+        # COS計算（speed）用
+        df_vel = pd.read_csv(velocity_csv_path)
+        print(f"'{velocity_csv_path}' を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {velocity_csv_path}")
+        return
+    
+# 2.個体IDの特定と個体ごとの反復処理
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+
+    n_individuals = len(individual_ids)
+    if n_individuals <= 1:
+        print(f"エラー: 検出された個体数が {n_individuals} のため、グラフを作成できません。")
+        print("プログラムを終了します")
+        return
+    print(f"{n_individuals} 個体を対象に、全ペアの距離変化グラフを作成します。")
+    
+    # 全ての個体のペアについてループ処理
+    pair_combinations = list(combinations(individual_ids, 2))
+
+    # 速度データの列を特定
+    speed_cols = [col for col in df_vel.columns if col.startswith('speed_')]
+    if not speed_cols:
+        print("速度データの列が見つかりません。")
+        return
+    
+    # 速度データ列の形(str)を数値(float)に変換
+    for col in speed_cols:
+        df_vel[col] = pd.to_numeric(df_vel[col], errors='coerce')
+        df_vel[col].fillna(0, inplace=True)
+    print("速度データ列を数値に変換しました。")
+
+    # 外れ値の処理
+    if remove_outliers:
+        predefined_threshold = 200.0 # 閾値を設定 例: 50.0
+        for col in speed_cols:
+            outlier_count = df_vel[df_vel[col] > predefined_threshold].shape[0]
+            if outlier_count > 0:
+                print(f"  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を0に置換しました。")
+                df_vel.loc[df_vel[col] > predefined_threshold, col] = 0 # 外れ値を0に置換
+        print("外れ値の処理が完了しました。") 
+
+# 3.活動状態の判定
+    # しきい値の取得
+    threshold_values, _ = calculate_thresholds.get_threshold_values(velocity_csv_path)
+    if threshold_values is None:
+        print("閾値の計算に失敗したため、プログラムを終了します。") 
+        return
+    else:
+        if velocity_threshold is not None:
+            selected_threshold = threshold_values.get(velocity_threshold)
+            print(f"使用する閾値のキー: {velocity_threshold}, 値: {selected_threshold}")
+        else:
+            print("閾値キーが None に設定されています。活動判定をスキップします。")
+            return # 閾値なしでは活動判定ができないため中断
+        
+    print(f"全 {len(pair_combinations)} ペアの活動状態を判定します")
+    
+    for id1, id2 in pair_combinations:
+        print(f"\n処理中: ペア (A = ID: {id1}, B = ID: {id2})")
+
+        # 速度データ (df_vel) と閾値 (selected_threshold) を比較
+        speed_col_A = f'speed_{id1}'
+        speed_col_B = f'speed_{id2}'
+        
+        # カラムが存在するかチェック (念のため)
+        if speed_col_A not in df_vel.columns or speed_col_B not in df_vel.columns:
+            print(f"エラー: 速度の列が見つかりません ({speed_col_A} or {speed_col_B})。このペアをスキップします。")
+            continue
+            
+        # 閾値より大きいフレームを 1 (活動)、それ以外を 0 (非活動) とする
+        # .astype(int) で True/False を 1/0 に変換
+        A = (df_vel[speed_col_A] > selected_threshold).astype(int)
+        B = (df_vel[speed_col_B] > selected_threshold).astype(int)
+        
+        print(f"  - 活動状態 (A, B) を判定しました。")
+
+# 4.COS(Combination Of States)の計算,Hayashi,2012を参照
+        COS = A - B + 2 * A * B
+        
+        print(f"  - COS (Combination of States) を計算しました。")
+
+# 5.接触の判定
+    # 位置データ (df_pos) から、このペアのx, y座標を取得
+        pos_A_x = f'x{id1}'
+        pos_A_y = f'y{id1}'
+        pos_B_x = f'x{id2}'
+        pos_B_y = f'y{id2}'
+
+        # 座標カラムが存在するかチェック
+        if not all(col in df_pos.columns for col in [pos_A_x, pos_A_y, pos_B_x, pos_B_y]):
+            print(f"エラー: 座標カラムが見つかりません。このペアをスキップします。")
+            continue
+
+        # .to_numpy() を使って高速なNumpy計算
+        pos_A = df_pos[[pos_A_x, pos_A_y]].to_numpy()
+        pos_B = df_pos[[pos_B_x, pos_B_y]].to_numpy()
+
+        # 全フレームのユークリッド距離を計算
+        distances = np.sqrt(np.sum((pos_A - pos_B)**2, axis=1))
+        
+        # 距離が contact_threshold 以下のフレームを特定 (True/FalseのSeries)
+        total_frames = len(df_pos)
+        frames = df_pos['position']
+        contact_frames = frames[distances <= distance_threshold]
+        
+        print(f"  - 接触判定 (全 {total_frames} Frame) を実行しました。")
+
+# 7.グラフの横軸となる時間(秒)への変換
+        FPS = 2.0 # 1フレーム=1/2秒
+            
+        # position (フレーム番号) を 時間 (秒) に変換
+        # (変数 'frames' は 'df_pos['position']' と同義)
+        time_seconds = frames / FPS
+        # 時間を時間(秒)から時間(分)に変更
+        time_minutes = time_seconds / 60
+            
+        # 接触したフレーム番号 (contact_frames) も、時間 (秒) に変換
+        contact_times_sec = contact_frames / FPS
+        # こちらも同様に変換
+        contact_times_min = contact_frames / 60
+
+        # ▼ 修正：合計時間（秒）を計算して表示
+        total_time_in_seconds = total_frames / FPS
+        total_time_in_minutes = total_time_in_seconds / 60
+        
+        print(f"  - 時間軸 (秒) を計算しました (FPS={FPS}, 合計時間: {total_time_in_minutes:.2f} 分)。")
+
+# 8.グラフの描画
+        # ペアごとに新しい図（Figure）を作成する
+        fig, ax = plt.subplots(figsize=(15, 5)) # 横長のグラフ
+
+        # [線グラフ] COSの時系列をプロット
+        ax.plot(time_minutes, COS, label=f'COS (ID:{id1} , ID:{id2})', linewidth=1.0)
+        
+        # [点グラフ] 接触点をY=0（横軸上）にプロット
+        # Y軸の値を0にするために、contact_times_sec と同じ長さの0の配列を生成
+        plot_y = np.zeros_like(contact_times_min)
+        ax.plot(contact_times_min, plot_y, 'o', color='red', markersize=3, label=f'Contact (<= {distance_threshold} px)')
+
+        # タイトル (ペアごとに動的)
+        ax.set_title(f'COS and Contact over Time (ID:{id1} , ID:{id2})', fontsize=14)
+        
+        # X軸 (秒)
+        ax.set_xlabel('Time (minutes)', fontsize=12)
+        ax.set_xlim(0, total_time_in_minutes) # X軸の範囲を0から合計時間までにする
+        
+        # Y軸 (COS)
+        ax.set_ylabel('COS (Combination of States)', fontsize=12)
+        # 目盛りをFig. 11 に合わせる
+        ax.set_yticks([-1, 0, 1, 2])
+        ax.set_ylim(-1.5, 2.5) # 上下にも少し余白を持たせる
+        
+        # Y=0 の補助線
+        ax.axhline(y=0, color='grey', linestyle='--', linewidth=0.5)
+        
+        ax.legend()
+        ax.grid(axis='y', linestyle='--', alpha=0.7) #
+        
+        # 5. グラフの表示 (ペアごとに1枚ずつ)
+        plt.tight_layout() #
+        plt.show()
+
+    print("全てのペアの処理が完了しました")
+
+
+
+
+
+
+# メイン処理
+if __name__ == "__main__":
+    # 位置データと速度データの両方を入力
+    INPUT_POSITION_CSV = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv"
+    INPUT_VELOCITY_CSV = f"{INPUT_POSITION_CSV}_velocity.csv"
+    # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
+    REMOVE_OUTLIERS = True
+    # 活動状態の判定に使用する速度の閾値 STATE_THRESHOLD を選択
+    # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
+    VELOCITY_THRESHOLD = "avg_half"
+    # 接触判定に使用する距離のしきい値DISTANCE＿THRESHOLD を設定
+    # CONTACT_THRESHOLD = plot_social_network.CONTACT_THRESHOLD_PIXELS
+    DISTANCE_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
+
+    plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, DISTANCE_THRESHOLD, remove_outliers=REMOVE_OUTLIERS)
