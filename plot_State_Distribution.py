@@ -5,12 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import platform
 import os
+import sympy as sym
 import calculate_thresholds # 閾値計算用のモジュールをインポート
 import plot_social_network
 from matplotlib.ticker import MaxNLocator, LogLocator
 from itertools import combinations
 
-def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers):
+def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers, plot_glaph):
     """
     ある初期状態 ( $\pi(0)$ ) からスタートした場合、時間が経過するにつれて8状態の確率分布 
     $\pi(t)$ がどのように推移するかをシミュレーションする。
@@ -277,52 +278,102 @@ def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_thres
         
         print(f"  - 時間軸 (秒) を計算しました (FPS={FPS}, 合計時間: {total_time_in_minutes:.2f} 分)。")
 
-# 12.グラフの描画 (note.com 方式)   
-        fig, ax = plt.subplots(figsize=(15, 5))
-        
-        # 8状態の確率推移をすべてプロット (ax.plot(inside, ...))
-        for s in states: # 'states' = [1, 2...8]
-            # 'state_labels' (s1: ...) から正しいラベルを取得
-            label_name = state_labels[s-1] 
-            ax.plot(time_minutes, probability_trends[s], label=label_name, linewidth=1.5)
+# 12.グラフの描画 
+        if plot_glaph:
+            fig, ax = plt.subplots(figsize=(15, 5))
+            
+            # 8状態の確率推移をすべてプロット (ax.plot(inside, ...))
+            for s in states: # 'states' = [1, 2...8]
+                # 'state_labels' (s1: ...) から正しいラベルを取得
+                label_name = state_labels[s-1] 
+                ax.plot(time_minutes, probability_trends[s], label=label_name, linewidth=1.5)
 
-        # グラフの体裁 (ax.set(...))
-        # (変数 'pair_name' を使用)
-        ax.set_title(f'Markov Chain Simulation (ID:{id1} , {id2})', fontsize=14)
-        ax.set_xlabel('Time (minutes)', fontsize=12) #
-        ax.set_xlim(0, time_minutes.max())
-        # (Y軸ラベルを 'Probability (Cumulative Average)' に変更)
-        ax.set_ylabel('Probability (Cumulative Average)', fontsize=12) #
-        ax.set_ylim(0, 1.0)
-        ax.grid(True) #
-        
-        # 凡例をグラフの「内側・右上」('upper right') に配置
-        ax.legend(loc='upper right', fontsize='small') #
-        
-        # グラフの表示(ペアごとに1枚ずつ)
-        plt.tight_layout()
-        # plt.show()
+            # グラフの体裁 (ax.set(...))
+            # (変数 'pair_name' を使用)
+            ax.set_title(f'Markov Chain Simulation (ID:{id1} , {id2})', fontsize=14)
+            ax.set_xlabel('Time (minutes)', fontsize=12) #
+            ax.set_xlim(0, time_minutes.max())
+            # (Y軸ラベルを 'Probability (Cumulative Average)' に変更)
+            ax.set_ylabel('Probability (Cumulative Average)', fontsize=12) #
+            ax.set_ylim(0, 1.0)
+            ax.grid(True) #
+            
+            # 凡例をグラフの「内側・右上」('upper right') に配置
+            ax.legend(loc='upper right', fontsize='small') #
+            
+            # グラフの表示(ペアごとに1枚ずつ)
+            plt.tight_layout()
+            # plt.show()
 
-        # グラフの自動保存 
-        # ファイル名 (例: "State_Distribution(ID_0,1).png")
-        output_filename = f"State_Distribution(ID_{id1},{id2}).png"
-        # ▼ 修正: os.path.join で「保存先フォルダ」と「ファイル名」を連結
-        output_directory = os.path.dirname(position_csv_path)
-        save_path = os.path.join(output_directory, output_filename)
-        
-        try:
-            # dpi=300 で高解像度保存
-            plt.savefig(save_path, dpi=300)
-            print(f"  - グラフを '{output_filename}' として保存しました。")
-        except Exception as e:
-            print(f"  - グラフの保存中にエラーが発生しました: {e}")
+            # グラフの自動保存 
+            # ファイル名 (例: "State_Distribution(ID_0,1).png")
+            output_filename = f"State_Distribution(ID_{id1},{id2}).png"
+            # ▼ 修正: os.path.join で「保存先フォルダ」と「ファイル名」を連結
+            output_directory = os.path.dirname(position_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
+            
+            try:
+                # dpi=300 で高解像度保存
+                plt.savefig(save_path, dpi=300)
+                print(f"  - グラフを '{output_filename}' として保存しました。")
+            except Exception as e:
+                print(f"  - グラフの保存中にエラーが発生しました: {e}")
 
-        # plt.show() # 保存と同時に表示も行う
+            # plt.show() # 保存と同時に表示も行う
 
-        # # (メモリを節約するために、表示後に図を閉じる)
-        # plt.close(fig)
+            # # (メモリを節約するために、表示後に図を閉じる)
+            # plt.close(fig)
+        else:
+            print(f" - グラフの作成をスキップします")
+            pass
 
     print("全てのペアの処理が完了しました")
+    # 計算結果の「辞書」と「ラベル」、frames を return する(後の関数で使用)
+    return transition_matrices, state_labels, id1, id2
+
+def analytical_calculation(transition_matrices, state_labels):
+    """
+    「遷移確率行列 P」 から、sympy を使って定常分布 (pi = pi*P) を
+    解析的に計算し、コンソールに出力する。
+    """
+    print("\n解析計算 (定常分布)を行います")
+
+    # P行列の辞書をループ
+    for pair_name, P_matrix in transition_matrices.items():
+        print(f"\n処理中: ペア (ID: {id1}, ID: {id2})")
+        pi_vars = sym.symbols(f'pi_1:{9}') # (pi_1, pi_2, ..., pi_8)
+        equations = []
+        for j in range(8): # j = 0 から 7 (s1 から s8)
+            lhs = pi_vars[j]
+            rhs = 0
+            for i in range(8): # i = 0 から 7 (s1 から s8)
+                rhs += pi_vars[i] * P_matrix[i, j]
+            equations.append(sym.Eq(lhs, rhs)) #
+        
+        equations.append(sym.Eq(sum(pi_vars), 1)) #
+        print(f"  - 9個の連立方程式 (pi = pi*P, sum(pi)=1) を構築しました。")
+        print(f"  - sympy.solve で解析計算を実行します...(時間がかかる場合があります)")
+
+        try:
+            solution = sym.solve(equations[:7] + [equations[8]], pi_vars) #
+        except Exception as e:
+            print(f"  - sympy.solve でエラーが発生しました: {e}")
+            continue 
+
+        if not solution:
+            print(f"  - sympy.solve が解を見つけられませんでした。スキップします。")
+            continue
+
+        stationary_distribution = [solution.get(pi, 0) for pi in pi_vars]
+        print(f"  - 定常分布 (解析計算) が完了しました。")
+        
+        print(f"    --- 定常分布 (Stationary Distribution) ペア (ID_{id1},{id2}) ---")
+        for i in range(len(state_labels)):
+            state_name = state_labels[i] #
+            probability = stationary_distribution[i]
+            print(f"      {state_name}: {float(probability)*100:.2f} %")
+
+    print(f"\n全てのペアの解析計算 (定常分布) が完了しました。")
 
 # メイン処理
 if __name__ == "__main__":
@@ -338,4 +389,27 @@ if __name__ == "__main__":
     # CONTACT_THRESHOLD = plot_social_network.CONTACT_THRESHOLD_PIXELS
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
 
-    plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS)
+    # 実行する処理を選択
+    DO_PLOT_STATE_DISTRIBUTION = False
+    DO_ANALYTICAL_CALCULATION = True
+
+    # 選択された処理のみを実行する
+    try:
+        if DO_PLOT_STATE_DISTRIBUTION:
+            transition_matrices, state_labels, id1, id2 = plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS, plot_glaph=True)
+        else:
+            # プロットはスキップしたい場合でも、解析に必要なデータを取得するために関数を呼び出して戻り値を受け取ります。
+            print(f"\n{plot_state_distribution}をスキップします。\n状態の計算のみを行います")
+            transition_matrices, state_labels, id1, id2 = plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS, plot_glaph=False)
+
+        if DO_ANALYTICAL_CALCULATION:
+            analytical_calculation(transition_matrices, state_labels)
+        else:
+            print(f"\n{analytical_calculation}をスキップします")
+
+    except Exception as e:
+        print(f"エラーが発生しました: {e}")
+        import traceback
+        traceback.print_exc()
+
+    print("\n選択されたすべての処理が終了しました")
