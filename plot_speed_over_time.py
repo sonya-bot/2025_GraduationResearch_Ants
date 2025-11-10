@@ -150,7 +150,7 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
         # グラフの自動保存設定
         if auto_save:
             save_path = f"Speed_over_Time_(ID_{i_id}).png"
-            plt.savefig(save_path)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f" - 速度変化グラフを保存しました: {save_path}")
         else:
             print(f" - 速度変化グラフを表示します: ID {i_id}")
