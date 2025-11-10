@@ -4,16 +4,17 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import platform
+import os
 import calculate_thresholds as calc # 閾値計算用のモジュールをインポート
 from matplotlib.ticker import MaxNLocator, LogLocator
 
-def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_size, auto_save):
+def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, use_log_scale, fig_size, auto_save):
 # 1.データの読み込み
     try:
-        df = pd.read_csv(input_filename)
-        print(f"'{input_filename}'を正常に読み込みました。")
+        df = pd.read_csv(velocity_csv_path)
+        print(f"'{velocity_csv_path}'を正常に読み込みました。")
     except FileNotFoundError:
-        print(f"エラー: ファイルが見つかりません - {input_filename}")
+        print(f"エラー: ファイルが見つかりません - {velocity_csv_path}")
         return
 
 # 2.個体IDの特定と個体ごとの反復処理
@@ -48,11 +49,11 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
         # print("外れ値の処理が完了しました。")
 
         # 外れ値のしきい値を任意の速度に設定する場合、こちらを使用
-        predefined_threshold = 200.0 # 閾値を設定 例: 50.0
+        predefined_threshold = remove_threshold # 閾値を設定 例: 50.0
         for col in speed_cols:
             outlier_count = df[df[col] > predefined_threshold].shape[0]
             if outlier_count > 0:
-                print(f" -  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を0に置換しました。")
+                print(f" -  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を処理しました。")
                 df.loc[df[col] > predefined_threshold, col] = np.nan # 外れ値を NaN に置換
         print("外れ値の処理が完了しました。") 
 
@@ -84,6 +85,8 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
     # 表示したい上限 (100) とデータの最大値のうち、大きい方を採用
     max_speed_in_data = df[speed_cols].max().max() * 1.1
     y_axis_top_limit = max(max_speed_in_data, 100)
+    ax_overlay.set_xlim(0, 180)
+    ax_overlay.set_xticks(np.arange(0, 181, 20))
 
     # 対数表示の設定
     if use_log_scale:
@@ -98,7 +101,7 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
     
     ax_overlay.set_title(f'Speed over Time (All Individuals)')
     # X軸のラベルを 'Frame' から 'Time (min)' に変更
-    ax_overlay.set_xlabel(f'Time ({total_time_in_minutes:.2f} min)') 
+    ax_overlay.set_xlabel(f'Time (min)') 
     ax_overlay.set_ylabel('Speed (pixels/frame)')
     ax_overlay.grid(True, linestyle='--', alpha=0.6)
     print("全個体の速度データをプロットします...")
@@ -115,7 +118,9 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
 
     # グラフの自動保存設定
     if auto_save:
-        save_path = "Speed_over_Time_(All).png"
+        output_filename = "Speed_over_Time(All).png"
+        output_directory = os.path.dirname(velocity_csv_path)
+        save_path = os.path.join(output_directory, output_filename)
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f" - 全体グラフを保存しました: {save_path}")
     else:
@@ -131,10 +136,12 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
         
         # X軸を 'df['position']' から 'time_minutes' に変更
         ax.plot(time_minutes, df[speed_col_name], label=f'Speed of {i_id}')
+        ax.set_xlim(0, 180)
+        ax.set_xticks(np.arange(0, 181, 20))
 
         ax.set_title(f'Speed over Time Individual (ID:{i_id})')
         # X軸のラベルを 'Frame' から 'Time (min)' に変更
-        ax.set_xlabel(f'Time')
+        ax.set_xlabel(f'Time (min)')
         ax.set_ylabel('Speed')
         ax.grid(True, linestyle='--', alpha=0.6)
 
@@ -149,22 +156,25 @@ def plot_speed_over_time(input_filename, remove_outliers, use_log_scale, fig_siz
 
         # グラフの自動保存設定
         if auto_save:
-            save_path = f"Speed_over_Time_(ID_{i_id}).png"
+            output_filename = f"Speed_over_Time(ID_{i_id}).png"
+            output_directory = os.path.dirname(velocity_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f" - 速度変化グラフを保存しました: {save_path}")
         else:
             print(f" - 速度変化グラフを表示します: ID {i_id}")
-        plt.show()
+            plt.show()
 
 # メイン処理
 if __name__ == '__main__':
-    INPUT_CSV = "20251016_02"
+    INPUT_CSV = "20251030_01"
     INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
     # 使用する閾値 KEY を選択
     # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
     # しきい値を使用しない場合は None に設定
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
+    REMOVE_THRESHOLD = 200.0  # 外れ値とみなす速度の閾値 (ピクセル/フレーム)
     # 縦軸を対数表示するかどうか (True: 対数表示, False: 通常表示)
     USE_LOG_SCALE = True
     # グラフのサイズを指定
@@ -172,4 +182,4 @@ if __name__ == '__main__':
     # グラフの自動保存
     AUTO_SAVE = False
 
-    plot_speed_over_time(INPUT_VELOCITY_CSV, remove_outliers=REMOVE_OUTLIERS, use_log_scale=USE_LOG_SCALE, fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
+    plot_speed_over_time(INPUT_VELOCITY_CSV, remove_outliers=REMOVE_OUTLIERS, remove_threshold=REMOVE_THRESHOLD, use_log_scale=USE_LOG_SCALE, fig_size=FIG_SIZE, auto_save=AUTO_SAVE)

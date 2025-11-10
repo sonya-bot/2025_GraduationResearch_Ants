@@ -4,134 +4,179 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import platform
+import os
 import calculate_thresholds as calc # 閾値計算用のモジュールをインポート
+from matplotlib.ticker import MaxNLocator, LogLocator
 
-try:
-    if platform.system() == 'Windows':
-        plt.rcParams['font.family'] = 'Meiryo'
-    elif platform.system() == 'Darwin': # macOS
-        plt.rcParams['font.family'] = 'Hiragino Sans'
-    else: # Linux
-        plt.rcParams['font.family'] = 'IPAexGothic'
-except Exception as e:
-    print(f"日本語フォントの設定中にエラーが発生しました: {e}")
 
-def plot_histogram_dashboard(input_filename, key_for_threshold):
+def plot_histogram_dashboard(velocity_csv_path, remove_outliers, remove_threshold, velocity_threshold, use_log_scale, fig_size, auto_save):
     """
     1. 全個体の速さの分布（積み上げヒストグラム）
     2. 個体ごとの速さの分布（ヒストグラム）
     これらを1枚の画像に出力する。
     """
+# 1.データの読み込み
     try:
-        df = pd.read_csv(input_filename)
-        print(f"'{input_filename}'を正常に読み込みました。")
+        df = pd.read_csv(velocity_csv_path)
+        print(f"'{velocity_csv_path}'を正常に読み込みました。")
     except FileNotFoundError:
-        print(f"エラー: ファイルが見つかりません - {input_filename}")
+        print(f"エラー: ファイルが見つかりません - {velocity_csv_path}")
         return
     
+# 2.個体IDの特定と個体ごとの反復処理
     # 速度データの列を特定
     speed_cols = [col for col in df.columns if col.startswith('speed_')]
+    individual_ids = [col.replace('speed_', '') for col in speed_cols]
+    n_individuals = len(individual_ids)
     if not speed_cols:
         print("速度データの列が見つかりません。")
         return
     
-        # 速度データ列の形(str)を数値(float)に変換
+    # 速度データ列の形(str)を数値(float)に変換
     for col in speed_cols:
         df[col] = pd.to_numeric(df[col], errors='coerce')
         df[col].fillna(0, inplace=True)
     print("速度データ列を数値に変換しました。")
 
-# 閾値データの修得(calculate_thresholds.pyからインポート)
-# 引数で受け取った input_filename を使うように修正
-    threshold_values, _ = calc.get_threshold_values(input_filename)
+    # 外れ値の処理
+    if remove_outliers:
+        print("外れ値の処理を実行します...")
+        # # 各速度列に対して外れ値を検出し、0に置換
+        # for col in speed_cols:
+        #     non_zero_speeds = df[df[col] > 0][col]
+        #     if not non_zero_speeds.empty:
+        #         outlier_threshold = non_zero_speeds.quantile(0.999) 
+        #         outlier_count = df[df[col] > outlier_threshold].shape[0]
+        #         if outlier_count > 0:
+        #             print(f"  列 '{col}': {outlier_threshold:.2f} を超える {outlier_count} 個の外れ値を0に置換しました。")
+        #             df.loc[df[col] > outlier_threshold, col] = 0
+        #     else:
+        #         print(f"  列 '{col}': 速度が0以外のデータがないため、外れ値処理をスキップしました。")
+        # print("外れ値の処理が完了しました。")
+
+        # 外れ値のしきい値を任意の速度に設定する場合、こちらを使用
+        predefined_threshold = remove_threshold # 閾値を設定 例: 50.0
+        for col in speed_cols:
+            outlier_count = df[df[col] > predefined_threshold].shape[0]
+            if outlier_count > 0:
+                print(f" -  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を処理しました。")
+                df.loc[df[col] > predefined_threshold, col] = np.nan # 外れ値を NaN に置換
+        print("外れ値の処理が完了しました。") 
+
+# 3.閾値の計算
+    threshold_values, _ = calc.get_threshold_values(velocity_csv_path)
+    selected_threshold = None # 閾値変数を初期化
     if threshold_values is None:
-        print("閾値の計算に失敗したため、プログラムを終了します。")
-        return
+        print("閾値の計算に失敗したため、処理を続行します（閾値線なし）。") 
     else:
-        if key_for_threshold is not None:
-            selected_threshold = threshold_values.get(key_for_threshold)
-            print(f"使用する閾値のキー: {key_for_threshold}, 値: {selected_threshold}")
-            for col in speed_cols:
-                df.loc[df[col] <= selected_threshold, col] = 0 # 閾値以下を0に置換
+        if velocity_threshold is not None:
+            selected_threshold = threshold_values.get(velocity_threshold)
+            print(f"使用する閾値のキー: {velocity_threshold}, 値: {selected_threshold}")
         else:
-            print("閾値を使用しません 元のデータで描画します")
+            print("閾値を使用しません（閾値線なし）。")
 
-    # 'speed_'で始まる列名から個体IDを特定
-    speed_cols = [col for col in df.columns if col.startswith('speed_')]
-    individual_ids = [col.replace('speed_', '') for col in speed_cols]
-    n_individuals = len(individual_ids)
+# 4.全個体の速度分布データをプロット
 
-    if not speed_cols:
-        print("速さのデータの列が見つかりません。")
-        return
-
-    # グラフの総数は「合計グラフ(1) + 個体数」
-    n_plots = n_individuals + 1
-
-    # サブプロットのレイアウトを自動計算
-    n_cols = int(np.ceil(np.sqrt(n_plots)))
-    n_rows = (n_plots + n_cols - 1) // n_cols
-
-    # 描画領域を作成
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(4 * n_cols, 3 * n_rows), constrained_layout=True)
-    axes_flat = axes.flatten() if n_plots > 1 else [axes]
-
-    fig.suptitle(f'Speed_Distribution (threshold: {key_for_threshold}, {selected_threshold})', fontsize=16)
-
-    # 1つ目のグラフを「積み上げヒストグラム」に変更
-    ax_summary = axes_flat[0]
+    # グラフの描画サイズを定義
+    plt.figure(figsize=fig_size)
+    ax_summary = plt.gca()
     
-    # 全個体の速さデータをリストに格納（修正箇所）
     speed_data_list = []
     labels_list = []
+    
+    # ヒストグラムのビンの設定 (0から最大値まで)
+    max_speed_for_hist = 50 # X軸の表示上限
+    bins = np.linspace(0, max_speed_for_hist, 100) # 0もヒストグラムに含める
+
     for col in speed_cols:
-        if selected_threshold is not None:
-            speeds = df[col][df[col] >= selected_threshold]
-        else:
-            speeds = df[col][df[col] > 0]
-        
+        speeds = df[col].dropna() 
         speed_data_list.append(speeds)
-        labels_list.append(f"ID {col.replace('speed_', '')}")
+        labels_list.append(f"ID:{col.replace('speed_', '')}")
 
-    # 積み上げヒストグラムを作成
-    ax_summary.hist(speed_data_list, bins='auto', stacked=True, label=labels_list,log=True)
-    # ax_summary.set_yscale('log')
+    # Y軸を対数表示(use_log_scale)にするか
+    ax_summary.hist(speed_data_list, bins=bins, stacked=True, label=labels_list, log=use_log_scale)
 
-    ax_summary.set_title('All_Individuals', fontsize=14)
-    ax_summary.set_xlabel('Speed')
-    ax_summary.set_ylabel('Frequency')
+    ax_summary.set_title(f'Speed Distribution (All Individuals)')
+    ax_summary.set_xlabel('Speed (pixels/frame)')
+    ax_summary.set_ylabel(f'Frequency{" (Log Scale)" if use_log_scale else ""}')
     ax_summary.grid(True, axis='y', linestyle='--', alpha=0.5)
+    ax_summary.set_xlim(0, 60) 
+    ax_summary.set_xticks(np.arange(0, 61, 20))
     if n_individuals <= 10:
         ax_summary.legend(fontsize='small')
-    # 
+    
+    # 閾値を凡例として表示
+    if selected_threshold is not None:
+        ax_summary.axvline(x=selected_threshold, color='red', linestyle='--', linewidth=1.5, 
+                           label=f'Threshold ({velocity_threshold}): {selected_threshold:.2f}')
+    
+    # 凡例をまとめて右上に表示 (個体数が多いと凡例が大きくなるため fontsize を 'small' に)
+    ax_summary.legend(loc='upper right', fontsize='small')
+    
+    if auto_save:
+        output_filename = "Speed_Distribution(All).png"
+        output_directory = os.path.dirname(velocity_csv_path)
+        save_path = os.path.join(output_directory, output_filename)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f" - 全体ヒストグラムを保存しました: {save_path}")
+    else:
+        print(f" - 全体ヒストグラムを表示します")
+        plt.show()
 
-    # --- 2つ目以降のグラフ: 個体ごとの速さ分布 ---
-    for i, i_id in enumerate(individual_ids):
-        ax_hist = axes_flat[i + 1]
+    # 個体ごとの速さ分布 (個体ごとに個別のウィンドウ) 
+    for i_id in individual_ids:
+        plt.figure(figsize=fig_size)
+        ax_hist = plt.gca()
         
-        if selected_threshold is not None:
-            individual_speeds = df[f'speed_{i_id}'][df[f'speed_{i_id}'] >= selected_threshold]
-        else:
-            individual_speeds = df[f'speed_{i_id}'][df[f'speed_{i_id}'] > 0]
+        individual_speeds = df[f'speed_{i_id}'].dropna()
         
         if not individual_speeds.empty:
-            ax_hist.hist(individual_speeds, bins=np.linspace(0, 40, 100), alpha=0.75, edgecolor='black', log=True)
+            ax_hist.hist(individual_speeds, bins=bins, alpha=0.75, edgecolor='black', log=use_log_scale)
 
-
-        ax_hist.set_title(f'Individual ID: {i_id}', fontsize=12)
-        ax_hist.set_xlabel('Speed')
-        ax_hist.set_ylabel('Frequency')
+        ax_hist.set_title(f'Speed Distribution (Individual ID:{i_id})')
+        ax_hist.set_xlabel('Speed (pixels/frame)')
+        ax_hist.set_ylabel(f'Frequency{" (Log Scale)" if use_log_scale else ""}')
         ax_hist.grid(True, axis='y', linestyle='--', alpha=0.5)
+        ax_hist.set_xlim(0, 60)
+        ax_hist.set_xticks(np.arange(0, 61, 20))
 
-    # 余った描画領域を非表示にする
-    for i in range(n_plots, len(axes_flat)):
-        axes_flat[i].axis('off')
+        # 閾値を凡例として表示
+        if selected_threshold is not None:
+            ax_hist.axvline(x=selected_threshold, color='red', linestyle='--', linewidth=1.5, 
+                            label=f'Threshold ({velocity_threshold}): {selected_threshold:.2f}')
+        
+            # 凡例をまとめて右上に表示 (個体数が多いと凡例が大きくなるため fontsize を 'small' に)
+            ax_hist.legend(loc='upper right', fontsize='small')
+        
 
-    plt.show()
+        if auto_save:
+            output_filename = f"Speed_Distribution(ID_{i_id}).png"
+            output_directory = os.path.dirname(velocity_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f" - 個別ヒストグラムを保存しました: {save_path}")
+        else:
+            print(f" - 個別ヒストグラムを表示します: ID {i_id}")
+            plt.show()
 
+# メイン処理
 if __name__ == '__main__':
-    # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = "d:/analysis_data/20251016_02/20251016_02-position_velocity.csv"
-    KEY = "median_q2"
+    # データの入力ファイル
+    INPUT_CSV = "20251030_02"
+    INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
+    # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
+    REMOVE_OUTLIERS = True
+    REMOVE_THRESHOLD = 200.0  # 外れ値とみなす速度の閾値 (ピクセル/フレーム)
+    # 使用する閾値 KEY を選択
+    # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
+    # 数値を指定して直接閾値を設定することも可能
+    # しきい値を使用しない場合は None に設定
+    VELOCITY_THRESHOLD = "avg_half" 
+    # 縦軸を対数表示するかどうか (True: 対数表示, False: 通常表示)
+    USE_LOG_SCALE = True
+    # グラフのサイズを指定
+    FIG_SIZE = (10, 5) # 横長のグラフ
+    # グラフの自動保存
+    AUTO_SAVE = False
 
-    plot_histogram_dashboard(INPUT_CSV, KEY)
+    plot_histogram_dashboard(INPUT_VELOCITY_CSV, remove_outliers=REMOVE_OUTLIERS, remove_threshold=REMOVE_THRESHOLD, velocity_threshold=VELOCITY_THRESHOLD, use_log_scale=USE_LOG_SCALE, fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
