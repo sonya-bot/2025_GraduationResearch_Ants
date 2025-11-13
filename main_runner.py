@@ -9,7 +9,7 @@ import plot_COS_Over_Time
 import plot_Contact_Spectrum
 
 # -----------------------------------------------------------------------------
-# ◆◆◆ 1. 実行設定 ◆◆◆
+# ◆◆◆ 実行設定 ◆◆◆
 # 実行したい分析を True に設定してください。
 # -----------------------------------------------------------------------------
 RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計算する
@@ -22,11 +22,11 @@ RUN_PLOT_COS_OVER_TIME = True        # True: COSの値の時間変化グラフ�
 RUN_PLOT_CONTACT_SPECTRUM = True     # True: 接触頻度のパワースペクトルグラフを描画する
 
 # -----------------------------------------------------------------------------
-# ◆◆◆ 2. パラメータ設定 ◆◆◆
+# ◆◆◆ パラメータ設定 ◆◆◆
 # -----------------------------------------------------------------------------
 # --- 基本ファイル設定 ---
 # ここで実行ファイルの日付を入力
-INPUT_CSV = "20251030_02"
+INPUT_CSV = "20251105_01"
 
 # --- 各スクリプトの詳細設定 ---
 # CSVファイルの設定
@@ -126,8 +126,8 @@ def main():
 
     # --- 8. 接触頻度のパワースペクトルグラフの描画 ---
     if RUN_PLOT_CONTACT_SPECTRUM:
-            print("\n--- [実行中] 8. 接触頻度のパワースペクトルグラフの描画 ---")
-            plot_Contact_Spectrum.plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)
+        print("\n--- [実行中] 8. 接触頻度のパワースペクトルグラフの描画 ---")
+        plot_Contact_Spectrum.plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, USE_LOGLOG_PLOT)
     else:
         print("\n--- [スキップ] 8. 接触頻度のパワースペクトルグラフの描画 ---")
 

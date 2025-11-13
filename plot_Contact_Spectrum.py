@@ -8,7 +8,7 @@ import platform
 import os
 from itertools import combinations 
 
-def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_save):
+def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_save, use_loglog_plot):
     """
     位置データからペア間の接触シグナルを生成し、
     Numpy FFT を使ってパワースペクトルを計算・描画する。
@@ -108,16 +108,22 @@ def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_s
         # グラフの体裁
         ax.set_title(f'Contact Spectrum (ID:{id1} , {id2})', fontsize=14)
         
-        # X軸 (線形スケール)
-        ax.set_xlabel('Frequency (/min)', fontsize=12) #
+        # 対数スケールの設定(y軸は常用対数変換済み)
+        if use_loglog_plot:
+            ax.set_xscale('log') # X軸も対数スケールに設定
+            ax.set_xlabel('Log Frequency (/min)', fontsize=12) # X軸 (対数スケール)
+        else:
+            ax.set_xlabel('Frequency (/min)', fontsize=12) # X軸 (線形スケール)
         
         # X軸の表示範囲を調整 (0 Hz (直流成分) を除外して表示)
         # (0.01 回/分 から表示)
-        # ax.set_xlim(0.01, freq_per_min.max()) 
-        ax.set_xlim(-1,10)
+        ax.set_xlim(0.01, freq_per_min.max()) 
+        # ax.set_xlim(-1,10)
         
         # Y軸 (対数変換済みのため、スケールは 'linear')
-        ax.set_ylabel('Log Amplitude', fontsize=12) #
+        ax.set_ylabel('Log Amplitude', fontsize=12) 
+        # 下限を少し下げて表示(下限は-5.5まで)
+        ax.set_ylim(max(F_log.min()-0.5, -5.5), F_log.max()+0.5)
         
         ax.grid(True, linestyle='--', alpha=0.6)
         
@@ -139,7 +145,7 @@ print("全てのペアの処理が完了しました")
 # メイン処理
 if __name__ == "__main__":
     # 位置データの入力
-    INPUT_CSV = "20251030_02"
+    INPUT_CSV = "20251101_01"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     # 接触判定に使用するしきい値
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
@@ -147,6 +153,8 @@ if __name__ == "__main__":
     FIG_SIZE = (10, 5)
     # グラフの自動保存設定
     AUTO_SAVE = False
+    # 対数スケールの設定
+    USE_LOGLOG_PLOT = True  # True: 両対数プロット, False: 半対数プロット
 
     # 関数を呼び出し
-    plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)
+    plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, USE_LOGLOG_PLOT)
