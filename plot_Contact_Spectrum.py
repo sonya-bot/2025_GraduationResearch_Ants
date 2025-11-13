@@ -5,9 +5,10 @@ import numpy as np
 import numpy.fft as fft # ▼ 要件定義(v5) 6. Numpy FFTをインポート
 import matplotlib.pyplot as plt
 import platform
+import os
 from itertools import combinations 
 
-def plot_contact_spectrum(position_csv_path, contact_threshold):
+def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_save):
     """
     位置データからペア間の接触シグナルを生成し、
     Numpy FFT を使ってパワースペクトルを計算・描画する。
@@ -98,7 +99,8 @@ def plot_contact_spectrum(position_csv_path, contact_threshold):
         print(f"  - 振幅スペクトル (X軸: 回/分, Y軸: Log Amplitude) を計算しました。")
 
 # 6.グラフの描画
-        fig, ax = plt.subplots(figsize=(10, 6))
+        plt.figure(figsize=fig_size)
+        ax = plt.gca() # 新しいFigureのAxesを取得
         
         # [線グラフ] 振幅スペクトルを描画
         ax.plot(freq_per_min, F_log, linewidth=1.0)
@@ -120,8 +122,15 @@ def plot_contact_spectrum(position_csv_path, contact_threshold):
         ax.grid(True, linestyle='--', alpha=0.6)
         
         # グラフの表示 (ペアごとに1枚ずつ)
-        plt.tight_layout()
-        plt.show()
+        if auto_save:
+            output_filename = f"Contact Spectrum (ID:{id1} , ID:{id2}).png"
+            output_directory = os.path.dirname(position_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f" - スペクトラム変化グラフを保存しました: {save_path}")
+        else:
+            print(f" - スペクトラム変化グラフを表示します: ID (ID:{id1} , ID:{id2})")
+            plt.show()
 
 print("全てのペアの処理が完了しました")
 
@@ -130,9 +139,14 @@ print("全てのペアの処理が完了しました")
 # メイン処理
 if __name__ == "__main__":
     # 位置データの入力
-    INPUT_POSITION_CSV = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv"
+    INPUT_CSV = "20251030_02"
+    INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     # 接触判定に使用するしきい値
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
+    # グラフのサイズを指定
+    FIG_SIZE = (10, 5)
+    # グラフの自動保存設定
+    AUTO_SAVE = False
 
     # 関数を呼び出し
-    plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD)
+    plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)

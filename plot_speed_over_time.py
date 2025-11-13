@@ -182,4 +182,4 @@ if __name__ == '__main__':
     # グラフの自動保存
     AUTO_SAVE = False
 
-    plot_speed_over_time(INPUT_VELOCITY_CSV, remove_outliers=REMOVE_OUTLIERS, remove_threshold=REMOVE_THRESHOLD, use_log_scale=USE_LOG_SCALE, fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
+    plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)

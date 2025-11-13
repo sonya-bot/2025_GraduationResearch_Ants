@@ -12,148 +12,122 @@ import plot_Contact_Spectrum
 # ◆◆◆ 1. 実行設定 ◆◆◆
 # 実行したい分析を True に設定してください。
 # -----------------------------------------------------------------------------
-RUN_CALCULATE_VELOCITY = False         # True: 位置データから速度を計算する
-RUN_PLOT_SPEED_OVER_TIME = False       # True: 時間ごとの速度変化グラフを描画する
-RUN_PLOT_VELOCITY_DISTRIBUTION = False # True: 速度の分布（ヒストグラム）を描画する
-RUN_PLOT_MSD = False                   # True: MSD（平均二乗変位）を計算・描画する
-RUN_PLOT_SOCIAL_NETWORK = False        # True: 個体間の接触ネットワークを計算・描画する
-RUN_PLOT_DISTANCE_OVER_TIME = False    # True: 個体ペア間の距離の時間変化グラフを描画する
-RUN_PLOT_COS_OVER_TIME = True
-RUN_PLOT_CONTACT_SPECTRUM = True
+RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計算する
+RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラフを描画する
+RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
+RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
+RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
+RUN_PLOT_DISTANCE_OVER_TIME = True   # True: 個体ペア間の距離の時間変化グラフを描画する
+RUN_PLOT_COS_OVER_TIME = True        # True: COSの値の時間変化グラフを描画する
+RUN_PLOT_CONTACT_SPECTRUM = True     # True: 接触頻度のパワースペクトルグラフを描画する
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 2. パラメータ設定 ◆◆◆
-# 分析に使用するファイルや条件を設定してください。
 # -----------------------------------------------------------------------------
 # --- 基本ファイル設定 ---
-# ここでファイルパスの「ベース」部分を設定すれば、下のファイル名は自動で設定されます。
-# BASE_FILE_PATH = "d:/analysis_data/20251016_02/20251016_02"
-BASE_FILE_PATH = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv" # Macでの実行時
+# ここで実行ファイルの日付を入力
+INPUT_CSV = "20251030_02"
 
 # --- 各スクリプトの詳細設定 ---
-# 速度計算 (`calculate_velocity.py`) 用
-# (通常は変更不要です)
-INPUT_POSITION_CSV = f"{BASE_FILE_PATH}"
-OUTPUT_VELOCITY_CSV = f"{BASE_FILE_PATH}_velocity.csv"
+# CSVファイルの設定
+INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
+INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
 
+# 外れ値の設定
+REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
+REMOVE_THRESHOLD = 200.0         # 外れ値とみなす速度の閾値 (ピクセル/フレーム)
+
+# 各種閾値の設定
 VELOCITY_THRESHOLD = "median_q2"  # 使用する速度の閾値 ('q1', 'median_q2', 'q3', 'avg_half', または None)
 CONTACT_THRESHOLD = 50.0         # 接触とみなす距離の閾値（ピクセル）,閾値以下の距離を接触とみなす
 
-REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
+# 対数スケールの設定
 USE_LOG_SCALE = True            # 縦軸を対数表示するか (True / False)
-
-# MSD (`plot_msd.py`) 用
+    # MSD (`plot_msd.py`) 用
 USE_LOGLOG_PLOT = True           # MSDグラフを両対数プロットにするか (True / False)
+
+#グラフの指定
+FIG_SIZE = (10,5) #描画サイズを指定
+AUTO_SAVE = True #グラフの自動保存設定 (True / False)
 
 
 
 # -----------------------------------------------------------------------------
 # ◆◆◆ 処理の実行 ◆◆◆
-# (この下は編集不要です)
 # -----------------------------------------------------------------------------
 def main():
     """設定に基づいて各分析処理を実行するメイン関数"""
     print("=== 分析処理を開始します ===")
     # --- 0. 入力ファイルが存在するかチェック ---
     if not os.path.exists(INPUT_POSITION_CSV):
-        print(f"エラー: 入力ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
+        print(f"エラー: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
         print("→ すべての処理を中止します。")
         return
-
+    
     # --- 1. 速度の計算 ---
-    if RUN_CALCULATE_VELOCITY:
-        print("\n--- [実行中] 1. 速度計算 ---")
-        calculate_velocity.calculate_velocity(INPUT_POSITION_CSV, OUTPUT_VELOCITY_CSV)
-    else:
+    if os.path.exists(INPUT_VELOCITY_CSV):
+        print(f"速度ファイルが既に存在しているため、速度計算をスキップします。")
+        RUN_CALCULATE_VELOCITY = False
         print("\n--- [スキップ] 1. 速度計算 ---")
+    else:
+        RUN_CALCULATE_VELOCITY = True
+        print("\n--- [実行中] 1. 速度計算 ---")
+        calculate_velocity.calculate_velocity(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV)
 
     # --- 2. 時間ごとの速度変化グラフの描画 ---
     if RUN_PLOT_SPEED_OVER_TIME:
-        print("\n--- [実行中] 2. 時間ごと速度グラフ描画 ---")
-        # 速度ファイルが存在するかチェック
-        if not os.path.exists(OUTPUT_VELOCITY_CSV):
-            print(f"警告: 速度ファイル '{OUTPUT_VELOCITY_CSV}' が見つかりません。")
-            print("→ グラフ描画をスキップします。先に速度計算を実行してください。")
-        else:
-            plot_speed_over_time.plot_speed_over_time(OUTPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, REMOVE_OUTLIERS, USE_LOG_SCALE)
+        plot_speed_over_time.plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
     else:
-        print("\n--- [スキップ] 2. 時間ごと速度グラフ描画 ---")
+        print("\n--- [スキップ] 2. 速度変化グラフ描画 ---")
+        pass
 
     # --- 3. 速度分布グラフの描画 ---
     if RUN_PLOT_VELOCITY_DISTRIBUTION:
         print("\n--- [実行中] 3. 速度分布グラフ描画 ---")
-        # 速度ファイルが存在するかチェック
-        if not os.path.exists(OUTPUT_VELOCITY_CSV):
-            print(f"警告: 速度ファイル '{OUTPUT_VELOCITY_CSV}' が見つかりません。")
-            print("→ グラフ描画をスキップします。先に速度計算を実行してください。")
-        else:
-            # plot_velocity_distribution.py 内でグローバル変数を参照しているため、
-            # 実行時に設定値を渡すように元のコードを少し変更するか、
-            # ここで値を設定する必要があります。今回は関数に引数を渡します。
-            plot_velocity_distribution.plot_histogram_dashboard(OUTPUT_VELOCITY_CSV, VELOCITY_THRESHOLD)
+        plot_velocity_distribution.plot_histogram_dashboard(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, VELOCITY_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
     else:
         print("\n--- [スキップ] 3. 速度分布グラフ描画 ---")
+        pass
 
     # --- 4. MSDの計算と描画 ---
     if RUN_PLOT_MSD:
         print("\n--- [実行中] 4. MSD計算・描画 ---")
-        # 位置ファイルが存在するかチェック
-        if not os.path.exists(INPUT_POSITION_CSV):
-            print(f"警告: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
-            print("→ MSD計算をスキップします。")
-        else:
-            # plot_msd.py 内のグローバル変数 USE_LOGLOG_PLOT を上書き
-            plot_msd.USE_LOGLOG_PLOT = USE_LOGLOG_PLOT
-            msd_data = plot_msd.calculate_msd_from_wide_format(INPUT_POSITION_CSV)
-            if msd_data:
-                plot_msd.plot_msd(msd_data, INPUT_POSITION_CSV)
+        df = plot_msd.load_data(INPUT_POSITION_CSV)
+        if df is not None:
+            msd_results = plot_msd.calculate_msd_from_wide_format(INPUT_POSITION_CSV, max_lag_ratio=0.5)
+            plot_msd.plot_msd(msd_results, INPUT_POSITION_CSV, USE_LOGLOG_PLOT, FIG_SIZE, AUTO_SAVE)
     else:
         print("\n--- [スキップ] 4. MSD計算・描画 ---")
+        pass
 
 
     # --- 5. 個体感ネットワークの計算と描画 ---
     if RUN_PLOT_SOCIAL_NETWORK:
         print("\n--- [実行中] 5. 個体ネットワーク描画 ---")
-        # 位置ファイルが存在するかチェック
-        if not os.path.exists(INPUT_POSITION_CSV):
-            print(f"警告: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
-            print("→ ネットワーク計算をスキップします。")
-        else:
-            contact_threshold = CONTACT_THRESHOLD
-            plot_social_network.plot_social_network(INPUT_POSITION_CSV, contact_threshold)
+        plot_social_network.plot_social_network(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)
     else:
         print("\n--- [スキップ] 5. 個体ネットワーク描画 ---")
+        pass
 
     # --- 6. 個体間距離の時間変化グラフの描画 ---
     if RUN_PLOT_DISTANCE_OVER_TIME:
         print("\n--- [実行中] 6. 個体間距離時間変化グラフ描画 ---")
-        # 位置ファイルが存在するかチェック
-        if not os.path.exists(INPUT_POSITION_CSV):
-            print(f"警告: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
-            print("→ 距離グラフ描画をスキップします。")
-        else:
-            contact_threshold = CONTACT_THRESHOLD
-            plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, contact_threshold)
+        plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, CONTACT_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
     else:
         print("\n--- [スキップ] 6. 個体間距離時間変化グラフ描画 ---")
+        pass
 
     # --- 7. COSの値の時間変化グラフの描画 ---
     if RUN_PLOT_COS_OVER_TIME:
         print("\n--- [実行中] 7. COSの値の時間変化グラフの描画 ---")
-        input_position_csv = INPUT_POSITION_CSV
-        input_velocity_csv = OUTPUT_VELOCITY_CSV
-        velocity_threshold = VELOCITY_THRESHOLD
-        contact_threshold = CONTACT_THRESHOLD
-        plot_COS_Over_Time.plot_cos_over_time(input_position_csv, input_velocity_csv, velocity_threshold, contact_threshold, REMOVE_OUTLIERS)
+        plot_COS_Over_Time.plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, REMOVE_OUTLIERS, FIG_SIZE, AUTO_SAVE)
     else:
         print("\n--- [スキップ] 7. COSの値の時間変化グラフの描画 ---")
 
     # --- 8. 接触頻度のパワースペクトルグラフの描画 ---
     if RUN_PLOT_CONTACT_SPECTRUM:
-        print("\n--- [実行中] 8. 接触頻度のパワースペクトルグラフの描画 ---")
-        input_position_csv = INPUT_POSITION_CSV
-        contact_threshold = CONTACT_THRESHOLD
-        plot_Contact_Spectrum.plot_contact_spectrum(input_position_csv, contact_threshold)
+            print("\n--- [実行中] 8. 接触頻度のパワースペクトルグラフの描画 ---")
+            plot_Contact_Spectrum.plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)
     else:
         print("\n--- [スキップ] 8. 接触頻度のパワースペクトルグラフの描画 ---")
 

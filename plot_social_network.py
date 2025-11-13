@@ -3,25 +3,26 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
+import os
 from itertools import combinations
 
-def plot_social_network(input_filename, contact_threshold):
+def plot_social_network(input_position_csv, contact_threshold, fig_size, auto_save):
     """
     個体の位置データから接触ネットワークを計算し、グラフとして描画する。
 
     Args:
-        input_filename (str): 位置情報(x, y)が含まれるCSVファイル名。
+        input_position_csv (str): 位置情報(x, y)が含まれるCSVファイル名。
         contact_threshold (float): 2個体が「接触している」と判断する最大距離（ピクセル）。
     """
-    # 1. データの読み込み
+# 1. データの読み込み
     try:
-        df = pd.read_csv(input_filename)
-        print(f"'{input_filename}'を正常に読み込みました。")
+        df = pd.read_csv(input_position_csv)
+        print(f"'{input_position_csv}'を正常に読み込みました。")
     except FileNotFoundError:
-        print(f"エラー: ファイルが見つかりません - {input_filename}")
+        print(f"エラー: ファイルが見つかりません - {input_position_csv}")
         return
 
-    # 2. 個体IDの特定
+# 2. 個体IDの特定
     x_cols = [col for col in df.columns if col.startswith('x')]
     individual_ids = [col[1:] for col in x_cols]
     n_individuals = len(individual_ids)
@@ -32,10 +33,11 @@ def plot_social_network(input_filename, contact_threshold):
         print("エラー: 個体が2つ未満のため、接触ネットワークを計算できません。")
         return
 
-    # 3. 接触回数を格納する辞書を準備
+# 3. 接触回数を格納する辞書を準備
+    frames = df["position"]
     contact_counts = {}
     
-    # 4. 全ての個体のペアについてループ
+# 4. 全ての個体のペアについてループ
     for id1, id2 in combinations(individual_ids, 2):
         pos1 = df[[f'x{id1}', f'y{id1}']].to_numpy()
         pos2 = df[[f'x{id2}', f'y{id2}']].to_numpy()
@@ -46,17 +48,16 @@ def plot_social_network(input_filename, contact_threshold):
         if contact_frames > 0:
             contact_counts[(id1, id2)] = contact_frames
 
-    # 5. ネットワークグラフの構築
+# 5. ネットワークグラフの構築
     G = nx.Graph()
     G.add_nodes_from(individual_ids)
 
     for pair, count in contact_counts.items():
         G.add_edge(pair[0], pair[1], weight=count)
     
-    # 6. グラフの描画
-    plt.figure(figsize=(10, 10))
+# 6. グラフの描画
+    plt.figure(figsize=fig_size)
     
-    # ★★★ ここからが変更箇所 ★★★
     # ノードを円周上に、ID '0' を基準に時計回りで配置するレイアウトを計算
     sorted_ids = sorted(G.nodes(), key=int)
     n_nodes = len(sorted_ids)
@@ -73,7 +74,6 @@ def plot_social_network(input_filename, contact_threshold):
         x = np.cos(angle)
         y = np.sin(angle)
         pos[node_id] = (x, y)
-    # ★★★ ここまでが変更箇所 ★★★
     
     edges = G.edges()
     weights = [G[u][v]['weight'] for u, v in edges]
@@ -112,15 +112,26 @@ def plot_social_network(input_filename, contact_threshold):
 
      # タイトルと表示設定
 
-    plt.title(f"Social Network (Contact Threshold: {contact_threshold} px)", fontsize=16)
+    plt.title(f"Contact Frequency (Total {len(frames)} frames)", fontsize=16)
     plt.axis('off')
-    plt.show()
 
+    # グラフの自動保存設定
+    if auto_save:
+        output_filename = f"Contact_Frequency.png"
+        output_directory = os.path.dirname(input_position_csv)
+        save_path = os.path.join(output_directory, output_filename)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f" - 接触ネットワークグラフを保存しました: {save_path}")
+    else:
+        print(f" - 接触ネットワークグラフを表示します:")
+        plt.show()
 
+# メイン処理
 if __name__ == '__main__':
-    # ◆◆◆ 設定 ◆◆◆
-    INPUT_CSV = "/Volumes/100.108.13.8/analysis_data/20251014_01/20251014_01-position.csv"
-    CONTACT_THRESHOLD_PIXELS = 50.0
+    INPUT_CSV = "20251101_01"
+    INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
+    CONTACT_THRESHOLD = 50.0
+    FIG_SIZE = (10, 5)
+    AUTO_SAVE = False
     
-    # ◆◆◆ 実行 ◆◆◆
-    plot_social_network(INPUT_CSV, CONTACT_THRESHOLD_PIXELS)
+    plot_social_network(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)

@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 import platform
 import calculate_thresholds # 閾値計算用のモジュールをインポート
 import plot_social_network
+import os
 from matplotlib.ticker import MaxNLocator, LogLocator
 from itertools import combinations
 
 
-def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers):
+def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers
+                       , fig_size, auto_save):
 # 1.データの読み込み
     # 位置データの読み込み
     try:
@@ -152,7 +154,8 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
 
 # 8.グラフの描画
         # ペアごとに新しい図（Figure）を作成する
-        fig, ax = plt.subplots(figsize=(15, 5)) # 横長のグラフ
+        plt.figure(figsize=fig_size)
+        ax = plt.gca() # 現在のAxesを取得
 
         # [線グラフ] COSの時系列をプロット
         ax.plot(time_minutes, COS, label=f'COS (ID:{id1} , ID:{id2})', linewidth=1.0)
@@ -182,8 +185,16 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
         ax.grid(axis='y', linestyle='--', alpha=0.7) #
         
         # 5. グラフの表示 (ペアごとに1枚ずつ)
-        plt.tight_layout() #
-        plt.show()
+        if auto_save:
+            output_filename = f"COS and Contact over Time (ID:{id1} , ID:{id2}).png"
+            output_directory = os.path.dirname(velocity_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f" - COS変化グラフを保存しました: {save_path}")
+        else:
+            print(f" - COS変化グラフを表示します: ID (ID:{id1} , ID:{id2})")
+            plt.show()
+
 
     print("全てのペアの処理が完了しました")
 
@@ -195,8 +206,10 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
 # メイン処理
 if __name__ == "__main__":
     # 位置データと速度データの両方を入力
-    INPUT_POSITION_CSV = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv"
-    INPUT_VELOCITY_CSV = f"{INPUT_POSITION_CSV}_velocity.csv"
+    INPUT_CSV = "20251030_02"
+    INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
+    INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
+    CONTACT_THRESHOLD = 50.0
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
     # 活動状態の判定に使用する速度の閾値 STATE_THRESHOLD を選択
@@ -205,5 +218,10 @@ if __name__ == "__main__":
     # 接触判定に使用する距離のしきい値DISTANCE＿THRESHOLD を設定
     # CONTACT_THRESHOLD = plot_social_network.CONTACT_THRESHOLD_PIXELS
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
+    # グラフのサイズを指定
+    FIG_SIZE = (10, 5)
+    # グラフの自動保存
+    AUTO_SAVE = False
 
-    plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS)
+    plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
+                       , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
