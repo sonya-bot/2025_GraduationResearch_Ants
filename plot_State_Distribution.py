@@ -11,7 +11,7 @@ import plot_social_network
 from matplotlib.ticker import MaxNLocator, LogLocator
 from itertools import combinations
 
-def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers, plot_glaph):
+def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers, plot_glaph, fig_size, auto_save):
     """
     ある初期状態 ( $\pi(0)$ ) からスタートした場合、時間が経過するにつれて8状態の確率分布 
     $\pi(t)$ がどのように推移するかをシミュレーションする。
@@ -280,7 +280,8 @@ def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_thres
 
 # 12.グラフの描画 
         if plot_glaph:
-            fig, ax = plt.subplots(figsize=(15, 5))
+            plt.figure(figsize=fig_size)
+            ax = plt.gca() # 現在のAxesを取得
             
             # 8状態の確率推移をすべてプロット (ax.plot(inside, ...))
             for s in states: # 'states' = [1, 2...8]
@@ -306,32 +307,31 @@ def plot_state_distribution(position_csv_path, velocity_csv_path, velocity_thres
             # plt.show()
 
             # グラフの自動保存 
-            # ファイル名 (例: "State_Distribution(ID_0,1).png")
-            output_filename = f"State_Distribution(ID_{id1},{id2}).png"
-            # ▼ 修正: os.path.join で「保存先フォルダ」と「ファイル名」を連結
-            output_directory = os.path.dirname(position_csv_path)
-            save_path = os.path.join(output_directory, output_filename)
-            
-            try:
-                # dpi=300 で高解像度保存
-                plt.savefig(save_path, dpi=300)
-                print(f"  - グラフを '{output_filename}' として保存しました。")
-            except Exception as e:
-                print(f"  - グラフの保存中にエラーが発生しました: {e}")
+            if auto_save:
+                # ファイル名 (例: "State_Distribution(ID_0,1).png")
+                output_filename = f"State_Distribution(ID_{id1},{id2}).png"
+                # ▼ 修正: os.path.join で「保存先フォルダ」と「ファイル名」を連結
+                output_directory = os.path.dirname(position_csv_path)
+                save_path = os.path.join(output_directory, output_filename)
+                try:
+                    # dpi=300 で高解像度保存
+                    plt.savefig(save_path, dpi=300)
+                    print(f"  - グラフを '{output_filename}' として保存しました。")
+                except Exception as e:
+                    print(f"  - グラフの保存中にエラーが発生しました: {e}")
+            else:
+                print(f" - 状態確率推移グラフを表示します: ID (ID:{id1} , ID:{id2})")
+                plt.show()
 
-            # plt.show() # 保存と同時に表示も行う
-
-            # # (メモリを節約するために、表示後に図を閉じる)
-            # plt.close(fig)
         else:
-            print(f" - グラフの作成をスキップします")
+            print(f"  - グラフの作成をスキップします")
             pass
 
     print("全てのペアの処理が完了しました")
     # 計算結果の「辞書」と「ラベル」、frames を return する(後の関数で使用)
     return transition_matrices, state_labels, id1, id2
 
-def analytical_calculation(transition_matrices, state_labels):
+def analytical_calculation(state_csv_path, transition_matrices, state_labels, auto_save):
     """
     「遷移確率行列 P」 から、sympy を使って定常分布 (pi = pi*P) を
     解析的に計算し、コンソールに出力する。
@@ -364,22 +364,42 @@ def analytical_calculation(transition_matrices, state_labels):
             print(f"  - sympy.solve が解を見つけられませんでした。スキップします。")
             continue
 
-        stationary_distribution = [solution.get(pi, 0) for pi in pi_vars]
+        stationary_distribution = [float(solution.get(pi, 0)) for pi in pi_vars]        
         print(f"  - 定常分布 (解析計算) が完了しました。")
         
+        # 定常分布の出力/保存設定
         print(f"    --- 定常分布 (Stationary Distribution) ペア (ID_{id1},{id2}) ---")
+        result_row = {'Pair': pair_name}
+        results_list = [] # ▼ 修正: CSV保存用に結果を貯めるリスト
         for i in range(len(state_labels)):
             state_name = state_labels[i] #
             probability = stationary_distribution[i]
             print(f"      {state_name}: {float(probability)*100:.2f} %")
+            result_row[state_name] = probability
+        results_list.append(result_row)
+
+        if auto_save:
+            output_filename = f"State_Distribution_Analytical_Results(ID_{id1},{id2}).csv"
+            output_directory = os.path.dirname(state_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
+            try:
+                df_results = pd.DataFrame(results_list)
+                df_results.to_csv(save_path, index=False)
+                print(f"  - 解析結果を '{output_filename}' として保存しました。")
+            except Exception as e:
+                print(f"  - 解析結果の保存中にエラーが発生しました: {e}")
+        else:
+            print(f"  - 解析結果の保存をスキップします。")
 
     print(f"\n全てのペアの解析計算 (定常分布) が完了しました。")
 
 # メイン処理
 if __name__ == "__main__":
-    # 位置データと速度データの両方を入力
-    INPUT_POSITION_CSV = "/Volumes/100.108.13.8/analysis_data/20251101_01/20251101_01-position.csv"
-    INPUT_VELOCITY_CSV = f"{INPUT_POSITION_CSV}_velocity.csv"
+    # ファイルパス設定
+    INPUT_CSV = "20251030_02" #日時の指定だけで良い
+    INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
+    INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
+    OUTPUT_STATE_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-state_distribution.csv"
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
     # 活動状態の判定に使用する速度の閾値 STATE_THRESHOLD を選択
@@ -388,6 +408,10 @@ if __name__ == "__main__":
     # 接触判定に使用する距離のしきい値DISTANCE＿THRESHOLD を設定
     # CONTACT_THRESHOLD = plot_social_network.CONTACT_THRESHOLD_PIXELS
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
+    # グラフのサイズを指定
+    FIG_SIZE = (10, 5)
+    # グラフの自動保存
+    AUTO_SAVE = True
 
     # 実行する処理を選択
     DO_PLOT_STATE_DISTRIBUTION = False
@@ -396,14 +420,13 @@ if __name__ == "__main__":
     # 選択された処理のみを実行する
     try:
         if DO_PLOT_STATE_DISTRIBUTION:
-            transition_matrices, state_labels, id1, id2 = plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS, plot_glaph=True)
+            transition_matrices, state_labels, id1, id2 = plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, REMOVE_OUTLIERS, plot_glaph=True, fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
         else:
             # プロットはスキップしたい場合でも、解析に必要なデータを取得するために関数を呼び出して戻り値を受け取ります。
             print(f"\n{plot_state_distribution}をスキップします。\n状態の計算のみを行います")
-            transition_matrices, state_labels, id1, id2 = plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS, plot_glaph=False)
-
+            transition_matrices, state_labels, id1, id2 = plot_state_distribution(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, REMOVE_OUTLIERS, plot_glaph=False, fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
         if DO_ANALYTICAL_CALCULATION:
-            analytical_calculation(transition_matrices, state_labels)
+            analytical_calculation(INPUT_POSITION_CSV, transition_matrices, state_labels, auto_save=AUTO_SAVE)
         else:
             print(f"\n{analytical_calculation}をスキップします")
 
