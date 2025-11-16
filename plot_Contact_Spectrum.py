@@ -129,7 +129,7 @@ def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_s
         
         # グラフの表示 (ペアごとに1枚ずつ)
         if auto_save:
-            output_filename = f"Contact Spectrum (ID:{id1} , ID:{id2}).png"
+            output_filename = f"Contact Spectrum (ID_{id1},{id2}).png"
             output_directory = os.path.dirname(position_csv_path)
             save_path = os.path.join(output_directory, output_filename)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -150,9 +150,9 @@ if __name__ == "__main__":
     # 接触判定に使用するしきい値
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
     # グラフのサイズを指定
-    FIG_SIZE = (10, 5)
+    FIG_SIZE = (15, 5)
     # グラフの自動保存設定
-    AUTO_SAVE = False
+    AUTO_SAVE = True
     # 対数スケールの設定
     USE_LOGLOG_PLOT = True  # True: 両対数プロット, False: 半対数プロット
 
