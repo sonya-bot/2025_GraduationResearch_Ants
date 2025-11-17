@@ -91,10 +91,12 @@ def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_s
         # 周波数軸の値を計算
         freq_per_min = fft.rfftfreq(N, d=sample_spacing_minutes)
 
-        # 周波数スペクトルの複素数を絶対値に変換
-        F_abs = np.abs(F)
+        # # 周波数スペクトルの複素数を絶対値に変換
+        # F_abs = np.abs(F)
+        # Fkの値は絶対値ではなく2乗値を使用(11/14ゼミ)
+        F_squared = F**2
         # 見やすいように常用対数に変換
-        F_log = np.log10(F_abs)
+        F_log = np.log10(F_squared)
 
         print(f"  - 振幅スペクトル (X軸: 回/分, Y軸: Log Amplitude) を計算しました。")
 
@@ -152,7 +154,7 @@ if __name__ == "__main__":
     # グラフのサイズを指定
     FIG_SIZE = (15, 5)
     # グラフの自動保存設定
-    AUTO_SAVE = True
+    AUTO_SAVE = False
     # 対数スケールの設定
     USE_LOGLOG_PLOT = True  # True: 両対数プロット, False: 半対数プロット
 
