@@ -10,9 +10,138 @@ import os
 from matplotlib.ticker import MaxNLocator, LogLocator
 from itertools import combinations
 
+# 0.実行設定 (初期状態はすべてFalse,main文の中で適宜変更して使用)
+    # 1匹の場合、1匹の速度データをもとに閾値以下を0、以上を1とする信号を作成し、COS計算・描画する
+RUN_PLOT_SINGLE_COS = False
+    # 2匹以上の場合、ペアごとにCOSを計算・描画する
+RUN_PLOT_PAIR_COS = False
+    # 3匹以上の場合は後で追加予定
+RUN_PLOT_TRIPLE_COS = False
 
-def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers
+def plot_single_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers
                        , fig_size, auto_save):
+    """
+    1匹の個体の速度データをもとに、COSを計算・描画する。
+    閾値以下を0、以上を1とする信号を作成し、時間変化グラフを描画する。
+    """
+# 1.データの読み込み
+    # 位置データの読み込み
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+        print(f"'{position_csv_path}'を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {position_csv_path}")
+        return
+    # 速度データの読み込み
+    try:
+        # COS計算（speed）用
+        df_vel = pd.read_csv(velocity_csv_path)
+        print(f"'{velocity_csv_path}' を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {velocity_csv_path}")
+        return
+    
+    # 速度データの列を特定
+    speed_cols = [col for col in df_vel.columns if col.startswith('speed_')]
+    if not speed_cols:
+        print("速度データの列が見つかりません。")
+        return
+    
+    # 速度データ列の形(str)を数値(float)に変換
+    for col in speed_cols:
+        df_vel[col] = pd.to_numeric(df_vel[col], errors='coerce')
+        df_vel[col].fillna(0, inplace=True)
+    print("速度データ列を数値に変換しました。")
+
+    # 外れ値の処理
+    if remove_outliers:
+        predefined_threshold = 200.0 # 閾値を設定 例: 50.0
+        for col in speed_cols:
+            outlier_count = df_vel[df_vel[col] > predefined_threshold].shape[0]
+            if outlier_count > 0:
+                print(f"  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を0に置換しました。")
+                df_vel.loc[df_vel[col] > predefined_threshold, col] = 0 # 外れ値を0に置換
+        print("外れ値の処理が完了しました。") 
+
+# 3.活動状態の判定
+    # しきい値の取得
+    threshold_values, _ = calculate_thresholds.get_threshold_values(velocity_csv_path)
+    if threshold_values is None:
+        print("閾値の計算に失敗したため、プログラムを終了します。") 
+        return
+    else:
+        if velocity_threshold is not None:
+            selected_threshold = threshold_values.get(velocity_threshold)
+            print(f"使用する閾値のキー: {velocity_threshold}, 値: {selected_threshold}")
+        else:
+            print("閾値キーが None に設定されています。活動判定をスキップします。")
+            return
+    
+#  4.活動状態(Activity State)の計算
+    individual_id = speed_cols[0].replace('speed_', '')
+    speed_col_name = speed_cols[0]
+    print(f"個体 ID: {individual_id} の活動状態を判定します。")
+    
+    # 閾値より大きいフレームを 1 (活動)、それ以外を 0 (非活動) とする
+    activity_state = (df_vel[speed_col_name] > selected_threshold).astype(int)
+    print(f"  - 活動状態を判定しました。")
+
+# 7.グラフの横軸となる時間(秒)への変換
+    FPS = 2.0 # 1フレーム=1/2秒
+    total_frames = len(df_pos)
+    frames = df_pos['position']
+        
+    time_seconds = frames / FPS
+    time_minutes = time_seconds / 60
+    total_time_in_minutes = total_frames / FPS / 60
+    
+    print(f"  - 時間軸 (分) を計算しました (FPS={FPS}, 合計時間: {total_time_in_minutes:.2f} 分)。")
+
+# 8.グラフの描画
+    plt.figure(figsize=fig_size)
+    ax = plt.gca()
+
+    # 活動状態の時系列をプロット (Hayashi, 2012, Fig. 5(c) スタイル)
+    ax.step(time_minutes, activity_state, where='mid', label=f'Activity State (ID:{individual_id})', linewidth=1.0)
+
+    # タイトル (動的)
+    ax.set_title(f'Activity State over Time (ID:{individual_id})', fontsize=14)
+    
+    # X軸 (分)
+    ax.set_xlabel('Time (minutes)', fontsize=12)
+    ax.set_xlim(0, total_time_in_minutes)
+    
+    # Y軸 (0/1の活動状態)
+    ax.set_ylabel('State of Activity', fontsize=12)
+    ax.set_yticks([0, 1])
+    ax.set_ylim(-0.5, 1.5) # 上下にも少し余白
+    
+    ax.legend()
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    # 5. グラフの表示 (ペアごとに1枚ずつ)
+    if auto_save:
+        # ファイル名 (動的)
+        output_filename = f"Activity_State_over_Time_(ID_{individual_id}).png"
+        output_directory = os.path.dirname(velocity_csv_path)
+        save_path = os.path.join(output_directory, output_filename)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f" - 活動状態グラフを保存しました: {save_path}")
+    else:
+        print(f" - 活動状態グラフを表示します: ID {individual_id}")
+        plt.show()
+
+    print(f"個体 {individual_id} の処理が完了しました")
+
+
+def plot_pair_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers
+                       , fig_size, auto_save):
+    """
+    2匹の個体のペアごとにCOSを計算・描画する。
+    COS = A - B + 2AB で定義
+    A,Bはそれぞれ個体A、Bの活動状態(0:非活動,1:活動)
+    """
+
 # 1.データの読み込み
     # 位置データの読み込み
     try:
@@ -195,9 +324,18 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
             print(f" - COS変化グラフを表示します: ID (ID:{id1} , ID:{id2})")
             plt.show()
 
-
     print("全てのペアの処理が完了しました")
 
+
+def plot_triple_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers
+                       , fig_size, auto_save):
+    """
+    3匹の個体のペアごとにCOSを計算・描画する。
+    式はこれから検討予定。
+    """
+
+    print("3匹用COSグラフ作成関数はまだ実装されていません。")
+    return
 
 
 
@@ -206,7 +344,7 @@ def plot_cos_over_time(position_csv_path, velocity_csv_path, velocity_threshold,
 # メイン処理
 if __name__ == "__main__":
     # 位置データと速度データの両方を入力
-    INPUT_CSV = "20251030_02"
+    INPUT_CSV = "20251030_01"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
     CONTACT_THRESHOLD = 50.0
@@ -223,5 +361,44 @@ if __name__ == "__main__":
     # グラフの自動保存
     AUTO_SAVE = False
 
-    plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
-                       , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
+    # 個体数の取得
+    position_csv_path = INPUT_POSITION_CSV
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+        print(f"'{position_csv_path}'を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません \n 処理を終了します")
+        exit()
+
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+
+    n_individuals = len(individual_ids)
+    if n_individuals == 1:
+        RUN_PLOT_SINGLE_COS = True
+        print("1匹の個体が検出されました。1匹用のCOSグラフを作成します。")
+    elif n_individuals == 2:
+        RUN_PLOT_PAIR_COS = True
+        print("2匹の個体が検出されました。2匹用のCOSグラフを作成します。")
+    elif n_individuals ==3:
+        print("3匹の個体が検出されました。3匹用のCOSグラフを作成します。")
+        RUN_PLOT_TRIPLE_COS = True
+    else:
+        print(f"エラー: 検出された個体数が {n_individuals} のため、COSグラフを作成できません。")
+        print("プログラムを終了します")
+        exit()
+
+    if RUN_PLOT_SINGLE_COS:
+        print("\n--- [実行中] 1匹用COSグラフの作成 ---")
+        plot_single_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
+                            , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
+        
+    elif RUN_PLOT_PAIR_COS:
+        print("\n--- [実行中] 2匹用COSグラフの作成 ---")
+        plot_pair_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
+                            , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
+        
+    elif RUN_PLOT_TRIPLE_COS:
+        print("\n--- [実行中] 3匹用COSグラフの作成 ---")
+        plot_triple_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
+                            , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
