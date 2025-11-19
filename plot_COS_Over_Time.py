@@ -18,7 +18,7 @@ RUN_PLOT_PAIR_COS = False
     # 3匹以上の場合は後で追加予定
 RUN_PLOT_TRIPLE_COS = False
 
-def plot_single_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers
+def plot_solo_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold, remove_outliers
                        , fig_size, auto_save):
     """
     1匹の個体の速度データをもとに、COSを計算・描画する。
@@ -295,7 +295,7 @@ def plot_pair_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
         ax.plot(contact_times_min, plot_y, 'o', color='red', markersize=3, label=f'Contact (<= {contact_threshold} px)')
 
         # タイトル (ペアごとに動的)
-        ax.set_title(f'COS and Contact over Time (ID:{id1} , ID:{id2})', fontsize=14)
+        ax.set_title(f'COS_2 and Contact over Time (ID:{id1} , ID:{id2})', fontsize=14)
         
         # X軸 (秒)
         ax.set_xlabel('Time (minutes)', fontsize=12)
@@ -315,7 +315,7 @@ def plot_pair_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
         
         # 5. グラフの表示 (ペアごとに1枚ずつ)
         if auto_save:
-            output_filename = f"COS and Contact over Time (ID:{id1} , ID:{id2}).png"
+            output_filename = f"COS_2 and Contact over Time (ID:{id1} , ID:{id2}).png"
             output_directory = os.path.dirname(velocity_csv_path)
             save_path = os.path.join(output_directory, output_filename)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -327,15 +327,272 @@ def plot_pair_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
     print("全てのペアの処理が完了しました")
 
 
-def plot_triple_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers
+def plot_trio_cos(position_csv_path, velocity_csv_path, velocity_threshold, contact_threshold,remove_outliers
                        , fig_size, auto_save):
     """
     3匹の個体のペアごとにCOSを計算・描画する。
-    式はこれから検討予定。
+    式ではなく状態を個別に定義
     """
 
-    print("3匹用COSグラフ作成関数はまだ実装されていません。")
-    return
+# 1.データの読み込み
+    # 位置データの読み込み
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+        print(f"'{position_csv_path}'を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {position_csv_path}")
+        return
+    # 速度データの読み込み
+    try:
+        # COS計算（speed）用
+        df_vel = pd.read_csv(velocity_csv_path)
+        print(f"'{velocity_csv_path}' を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {velocity_csv_path}")
+        return
+    
+    # 2.個体IDの特定と個体ごとの反復処理
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+
+    n_individuals = len(individual_ids)
+    if n_individuals <= 1:
+        print(f"エラー: 検出された個体数が {n_individuals} のため、グラフを作成できません。")
+        print("プログラムを終了します")
+        return
+    print(f"{n_individuals} 個体を対象に、全ペアの距離変化グラフを作成します。")
+    
+    # 全ての個体のペアについてループ処理
+    trio_combinations = list(combinations(individual_ids, 3))
+
+    # 速度データの列を特定
+    speed_cols = [col for col in df_vel.columns if col.startswith('speed_')]
+    if not speed_cols:
+        print("速度データの列が見つかりません。")
+        return
+    
+    # 速度データ列の形(str)を数値(float)に変換
+    for col in speed_cols:
+        df_vel[col] = pd.to_numeric(df_vel[col], errors='coerce')
+        df_vel[col].fillna(0, inplace=True)
+    print("速度データ列を数値に変換しました。")
+
+    # 外れ値の処理
+    if remove_outliers:
+        predefined_threshold = 200.0 # 閾値を設定 例: 50.0
+        for col in speed_cols:
+            outlier_count = df_vel[df_vel[col] > predefined_threshold].shape[0]
+            if outlier_count > 0:
+                print(f"  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を0に置換しました。")
+                df_vel.loc[df_vel[col] > predefined_threshold, col] = 0 # 外れ値を0に置換
+        print("外れ値の処理が完了しました。") 
+    
+# 3.活動状態の判定
+    # しきい値の取得
+    threshold_values, _ = calculate_thresholds.get_threshold_values(velocity_csv_path)
+    if threshold_values is None:
+        print("閾値の計算に失敗したため、プログラムを終了します。") 
+        return
+    else:
+        if velocity_threshold is not None:
+            selected_threshold = threshold_values.get(velocity_threshold)
+            print(f"使用する閾値のキー: {velocity_threshold}, 値: {selected_threshold}")
+        else:
+            print("閾値キーが None に設定されています。活動判定をスキップします。")
+            return # 閾値なしでは活動判定ができないため中断
+        
+    print(f"全 {len(trio_combinations)} トリオの活動状態を判定します")
+    
+    for id1, id2, id3 in trio_combinations:
+        print(f"\n処理中: トリオ (A = ID: {id1}, B = ID: {id2}, C = ID: {id3})")
+
+        # 速度データ (df_vel) と閾値 (selected_threshold) を比較
+        speed_col_A = f'speed_{id1}'
+        speed_col_B = f'speed_{id2}'
+        speed_col_C = f'speed_{id3}'
+        
+        # カラムが存在するかチェック (念のため)
+        if speed_col_A not in df_vel.columns or speed_col_B not in df_vel.columns or speed_col_C not in df_vel.columns:
+            print(f"エラー: 速度の列が見つかりません ({speed_col_A} or {speed_col_B} or {speed_col_C})。このトリオをスキップします。")
+            continue
+            
+        # 閾値より大きいフレームを 1 (活動)、それ以外を 0 (非活動) とする
+        # .astype(int) で True/False を 1/0 に変換
+        A = (df_vel[speed_col_A] > selected_threshold).astype(int)
+        B = (df_vel[speed_col_B] > selected_threshold).astype(int)
+        C = (df_vel[speed_col_C] > selected_threshold).astype(int)
+        
+        print(f"  - 活動状態 (A, B, C) を判定しました。")
+
+# 4.COS(Combination Of States)の計算,3匹用に定義
+            # conditions と choices を使って計算します
+        
+        conditions = [
+            (A == 0) & (B == 0) & (C == 0), # (0, 0, 0) -> 0
+            (A == 1) & (B == 0) & (C == 0), # (1, 0, 0) -> 1
+            (A == 0) & (B == 1) & (C == 1), # (0, 1, 1) -> -1
+            (A == 1) & (B == 0) & (C == 1), # (1, 0, 1) -> -2
+            (A == 0) & (B == 1) & (C == 0), # (0, 1, 0) -> 2
+            (A == 1) & (B == 1) & (C == 0), # (1, 1, 0) -> -3
+            (A == 0) & (B == 0) & (C == 1), # (0, 0, 1) -> 3
+            (A == 1) & (B == 1) & (C == 1)  # (1, 1, 1) -> 4
+        ]
+        
+        choices = [
+            0,   # (0, 0, 0)
+            1,   # (1, 0, 0)
+            -1,  # (0, 1, 1)
+            -2,  # (1, 0, 1)
+            2,   # (0, 1, 0)
+            -3,  # (1, 1, 0)
+            3,   # (0, 0, 1)
+            4    # (1, 1, 1)
+        ]
+        
+        # 条件に基づいて値を割り当て (該当なしはデフォルト0)
+        COS_3 = np.select(conditions, choices, default=0)
+        
+        print(f"  - 3体COSを計算しました。")
+
+# 5.接触の判定
+    # 位置データ (df_pos) から、このトリオのx, y座標を取得
+        pos_A_x = f'x{id1}'
+        pos_A_y = f'y{id1}'
+        pos_B_x = f'x{id2}'
+        pos_B_y = f'y{id2}'
+        pos_C_x = f'x{id3}'
+        pos_C_y = f'y{id3}' 
+
+        #  接触判定のための距離計算
+        total_frames = len(df_pos)
+        frames = df_pos['position']
+
+        # 座標カラムが存在するかチェック
+        if not all(col in df_pos.columns for col in [pos_A_x, pos_A_y, pos_B_x, pos_B_y, pos_C_x, pos_C_y]):
+            print(f"エラー: 座標カラムが見つかりません。このトリオをスキップします。")
+            continue
+
+        # .to_numpy() を使って高速なNumpy計算
+        pos_A = df_pos[[pos_A_x, pos_A_y]].to_numpy()
+        pos_B = df_pos[[pos_B_x, pos_B_y]].to_numpy()
+        pos_C = df_pos[[pos_C_x, pos_C_y]].to_numpy()
+
+        # 全フレームのユークリッド距離を計算
+        distances_AB = np.sqrt(np.sum((pos_A - pos_B)**2, axis=1))
+        distances_BC = np.sqrt(np.sum((pos_B - pos_C)**2, axis=1))
+        distances_CA = np.sqrt(np.sum((pos_C - pos_A)**2, axis=1))
+        # 2個体の接触はそれぞれ計算
+        contact_pair_frames = []
+        contact_AB = frames[distances_AB <= contact_threshold]
+        contact_BC = frames[distances_BC <= contact_threshold]
+        contact_CA = frames[distances_CA <= contact_threshold]
+        contact_pair_frames = [contact_AB, contact_BC, contact_CA]
+        # 3個体の接触は2パターンを考慮
+        contact_trio_frames = []
+            # 全員が接触
+        triangle_contact = (distances_AB <= contact_threshold) & (distances_BC <= contact_threshold) & (distances_CA <= contact_threshold)
+        triangle_contact_frames = frames[triangle_contact]
+        contact_trio_frames.append(triangle_contact_frames)
+            # 2個体が接触(1個体を介した接触)
+        any_chain_contact =(distances_AB <= contact_threshold) & (distances_BC <= contact_threshold) | (distances_BC <= contact_threshold) & (distances_CA <= contact_threshold) | (distances_CA <= contact_threshold) & (distances_AB <= contact_threshold)
+        chain_contact = any_chain_contact & (~triangle_contact)
+        chain_contact_frames = frames[chain_contact]
+        contact_trio_frames.append(chain_contact_frames)
+
+        print(f"  - 接触判定 (全 {total_frames} Frame) を実行しました。")
+
+# 7.グラフの横軸となる時間(秒)への変換
+        FPS = 2.0 # 1フレーム=1/2秒
+            
+        # 全体の時間軸（X軸用）
+        time_minutes = frames / FPS / 60
+        total_time_in_minutes = total_frames / FPS / 60
+
+        # 接触フレームのリストを整理 (フラットな構造にする)
+        # 構造: [0:ペア接触(全体), 1:全結合(Triangle), 2:鎖状(Chain)]
+        contact_frame_list = []
+        contact_frame_list.append(contact_trio_frames[0]) # 0: Triangle
+        contact_frame_list.append(contact_trio_frames[1]) # 1: Chain
+        contact_frame_list.append(contact_pair_frames[0])  # 2: A-B
+        contact_frame_list.append(contact_pair_frames[1])  # 3: B-C
+        contact_frame_list.append(contact_pair_frames[2])  # 4: C-A
+
+        # 各接触タイプごとに時間(分)に変換
+        contact_times_min_list = []
+        for frames_array in contact_frame_list:
+            # numpy配列に対して計算
+            times_min = frames_array / FPS / 60
+            contact_times_min_list.append(times_min)
+
+        # これで以下のデータが揃いました:
+        # contact_times_min_list[0] -> ペア接触の時間
+        # contact_times_min_list[1] -> 全結合の時間
+        # contact_times_min_list[2] -> 鎖状の時間
+        
+        print(f"  - 時間軸 (秒) を計算しました (FPS={FPS}, 合計時間: {total_time_in_minutes:.2f} 分)。")
+
+# 8.グラフの描画
+        # ペアごとに新しい図（Figure）を作成する
+        plt.figure(figsize=fig_size)
+        ax = plt.gca() # 現在のAxesを取得
+
+        # [線グラフ] COSの時系列をプロット
+        ax.plot(time_minutes, COS_3, label=f'COS (ID:{id1} , ID:{id2})', linewidth=1.0)
+        
+        # [点グラフ] 接触点をY=0（横軸上）にプロット
+        # プロット設定: (データインデックス, 色, ラベル, Y位置)
+        pairs_config = [
+                (2, 'green',  f'Pair (ID:{id1} , ID:{id2})'),
+                (3, 'cyan',   f'Pair (ID:{id2} , ID:{id3})'),
+                (4, 'purple', f'Pair (ID:{id3} , ID:{id1})')
+            ]
+        for idx, color, label in pairs_config:
+            times = contact_times_min_list[idx]
+            if len(times) > 0:
+                ax.plot(times, np.zeros_like(times), 'o', color=color, markersize=8, label=label, alpha=0.5, zorder=2)
+
+        # 仲介接触 Chain (オレンジ)
+        times_chain = contact_times_min_list[1]
+        if len(times_chain) > 0:
+            ax.plot(times_chain, np.zeros_like(times_chain), 'o', color='red', markersize=6, label='Chain', zorder=3)
+
+        # 全結合 Triangle (赤)
+        times_triangle = contact_times_min_list[0]
+        if len(times_triangle) > 0:
+            ax.plot(times_triangle, np.zeros_like(times_triangle), 'o', color='red', markersize=6, label='Triangle', zorder=4)
+
+        # タイトル (ペアごとに動的)
+        ax.set_title(f'COS_3 and Contact over Time (ID:{id1} , ID:{id2} , ID:{id3})', fontsize=14)
+        
+        # X軸 (秒)
+        ax.set_xlabel('Time (minutes)', fontsize=12)
+        ax.set_xlim(0, total_time_in_minutes) # X軸の範囲を0から合計時間までにする
+        
+        # Y軸 (COS)
+        ax.set_ylabel('COS (Combination of States)', fontsize=12)
+        # 目盛り
+        ax.set_yticks([-3, -2, -1, 0, 1, 2, 3, 4])
+        ax.set_ylim(-3.5, 4.5) # 上下にも少し余白を持たせる
+        
+        # Y=0 の補助線
+        ax.axhline(y=0, color='grey', linestyle='--', linewidth=0.5)
+        
+        ax.legend()
+        ax.grid(axis='y', linestyle='--', alpha=0.7) #
+        
+        # 5. グラフの表示 (ペアごとに1枚ずつ)
+        if auto_save:
+            output_filename = f"COS_2 and Contact over Time (ID:{id1} , ID:{id2}).png"
+            output_directory = os.path.dirname(velocity_csv_path)
+            save_path = os.path.join(output_directory, output_filename)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f" - COS変化グラフを保存しました: {save_path}")
+        else:
+            print(f" - COS変化グラフを表示します: ID (ID:{id1} , ID:{id2})")
+            plt.show()
+
+
+    print("全てのトリオの処理が完了しました")
 
 
 
@@ -344,7 +601,7 @@ def plot_triple_cos(position_csv_path, velocity_csv_path, velocity_threshold, co
 # メイン処理
 if __name__ == "__main__":
     # 位置データと速度データの両方を入力
-    INPUT_CSV = "20251030_01"
+    INPUT_CSV = "20251101_01"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
     CONTACT_THRESHOLD = 50.0
@@ -390,7 +647,7 @@ if __name__ == "__main__":
 
     if RUN_PLOT_SINGLE_COS:
         print("\n--- [実行中] 1匹用COSグラフの作成 ---")
-        plot_single_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
+        plot_solo_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
                             , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
         
     elif RUN_PLOT_PAIR_COS:
@@ -400,5 +657,5 @@ if __name__ == "__main__":
         
     elif RUN_PLOT_TRIPLE_COS:
         print("\n--- [実行中] 3匹用COSグラフの作成 ---")
-        plot_triple_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
+        plot_trio_cos(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, remove_outliers=REMOVE_OUTLIERS
                             , fig_size=FIG_SIZE, auto_save=AUTO_SAVE)
