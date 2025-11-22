@@ -17,7 +17,7 @@ RUN_PLOT_SPEED_OVER_TIME = True       # True: 時間ごとの速度変化グラ�
 RUN_PLOT_VELOCITY_DISTRIBUTION = True # True: 速度の分布（ヒストグラム）を描画する
 RUN_PLOT_MSD = True                   # True: MSD（平均二乗変位）を計算・描画する
 RUN_PLOT_SOCIAL_NETWORK = True        # True: 個体間の接触ネットワークを計算・描画する
-RUN_PLOT_DISTANCE_OVER_TIME = True   # True: 個体ペア間の距離の時間変化グラフを描画する
+RUN_PLOT_DISTANCE_OVER_TIME = False   # True: 個体ペア間の距離の時間変化グラフを描画する
 RUN_PLOT_COS_OVER_TIME = True        # True: COSの値の時間変化グラフを描画する
 RUN_PLOT_CONTACT_SPECTRUM = True     # True: 接触頻度のパワースペクトルグラフを描画する
 
@@ -25,13 +25,13 @@ RUN_PLOT_CONTACT_SPECTRUM = True     # True: 接触頻度のパワースペク�
 # ◆◆◆ パラメータ設定 ◆◆◆
 # -----------------------------------------------------------------------------
 # --- 基本ファイル設定 ---
-# ここで実行ファイルの日付を入力
-INPUT_CSV = "20251105_01"
+# ここで実行ファイルの日付を入力(複数入力可)
+INPUT_CSVS = ["20251105_01","20251104_02"]  # 日時の指定だけで良い
 
 # --- 各スクリプトの詳細設定 ---
 # CSVファイルの設定
-INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
-INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
+INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSVS}/{INPUT_CSVS}-position.csv"
+INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSVS}/{INPUT_CSVS}-position_velocity.csv"
 
 # 外れ値の設定
 REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
@@ -48,7 +48,7 @@ USE_LOGLOG_PLOT = True           # MSDグラフを両対数プロットにする
 
 #グラフの指定
 FIG_SIZE = (10,5) #描画サイズを指定
-AUTO_SAVE = True #グラフの自動保存設定 (True / False)
+AUTO_SAVE = False #グラフの自動保存設定 (True / False)
 
 
 
@@ -132,5 +132,30 @@ def main():
         print("\n--- [スキップ] 8. 接触頻度のパワースペクトルグラフの描画 ---")
 
 if __name__ == '__main__':
-    main()
-    print("\nすべての処理が終了しました。")
+    # INPUT_CSVS リストが定義されていることを確認
+    if 'INPUT_CSVS' not in globals() or not isinstance(INPUT_CSVS, list):
+        print("エラー: 'INPUT_CSVS' リストが main_runner.py の先頭で定義されていません。")
+        print("例: INPUT_CSVS = [\"20251105_01\", \"20251105_02\"]")
+    else:
+        print(f"合計で {len(INPUT_CSVS)} 件のデータセットを処理します。")
+
+        for i, base_name in enumerate(INPUT_CSVS):
+            #    base_name を使って上書きする
+            INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{base_name}/{base_name}-position.csv"
+            INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{base_name}/{base_name}-position_velocity.csv"
+
+            # 位置ファイル (ファイル) が存在するかをチェック
+            if os.path.exists(INPUT_POSITION_CSV):
+                print(f"データセット '{base_name}' の処理を開始します。")
+                try:
+                    # グローバル変数が更新されたので、main() を呼び出す
+                    main()
+                except Exception as e:
+                    print(f"エラー: データセット '{base_name}' の処理中に予期せぬエラーが発生しました: {e}")
+                    print("次のデータセットの処理に進みます。")
+            else:
+                # 5. 修正: 正しいエラーメッセージ
+                print(f"エラー: 指定された位置ファイル '{INPUT_POSITION_CSV}' が存在しません。")
+                print("次のデータセットの処理に進みます。")
+
+        print("\nすべてのデータセットの処理が完了しました。")

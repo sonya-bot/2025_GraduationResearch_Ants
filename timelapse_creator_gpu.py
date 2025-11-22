@@ -377,7 +377,7 @@ if __name__ == '__main__':
 
     # --- 実行する処理の選択 ---
     DO_CAPTURE = True
-    DO_DELETE_PRE_CAPTURE = True 
+    DO_DELETE_PRE_CAPTURE = False 
     DO_RENAME = True
     DO_TIMELAPSE = True # ← ここをTrueにしてGPUエンコードを試す
     DO_DELETE_IMAGES = False # 動画が正しくできていることを確認してからTrueにする

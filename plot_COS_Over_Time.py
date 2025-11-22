@@ -315,7 +315,7 @@ def plot_pair_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
         
         # 5. グラフの表示 (ペアごとに1枚ずつ)
         if auto_save:
-            output_filename = f"COS_2 and Contact over Time (ID:{id1} , ID:{id2}).png"
+            output_filename = f"COS_2 and Contact over Time (ID_{id1},{id2}).png"
             output_directory = os.path.dirname(velocity_csv_path)
             save_path = os.path.join(output_directory, output_filename)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -524,10 +524,6 @@ def plot_trio_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
             times_min = frames_array / FPS / 60
             contact_times_min_list.append(times_min)
 
-        # これで以下のデータが揃いました:
-        # contact_times_min_list[0] -> ペア接触の時間
-        # contact_times_min_list[1] -> 全結合の時間
-        # contact_times_min_list[2] -> 鎖状の時間
         
         print(f"  - 時間軸 (秒) を計算しました (FPS={FPS}, 合計時間: {total_time_in_minutes:.2f} 分)。")
 
@@ -554,15 +550,15 @@ def plot_trio_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
         # 仲介接触 Chain (オレンジ)
         times_chain = contact_times_min_list[1]
         if len(times_chain) > 0:
-            ax.plot(times_chain, np.zeros_like(times_chain), 'o', color='red', markersize=6, label='Chain', zorder=3)
+            ax.plot(times_chain, np.zeros_like(times_chain), 'o', color='red', markersize=6, label=None, zorder=3)
 
         # 全結合 Triangle (赤)
         times_triangle = contact_times_min_list[0]
         if len(times_triangle) > 0:
-            ax.plot(times_triangle, np.zeros_like(times_triangle), 'o', color='red', markersize=6, label='Triangle', zorder=4)
+            ax.plot(times_triangle, np.zeros_like(times_triangle), 'o', color='red', markersize=6, label='Trio', zorder=4)
 
         # タイトル (ペアごとに動的)
-        ax.set_title(f'COS_3 and Contact over Time (ID:{id1} , ID:{id2} , ID:{id3})', fontsize=14)
+        ax.set_title(f'COS_3 and Contact over Time (ID:{id1} , {id2} , {id3})', fontsize=14)
         
         # X軸 (秒)
         ax.set_xlabel('Time (minutes)', fontsize=12)
@@ -582,13 +578,13 @@ def plot_trio_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
         
         # 5. グラフの表示 (ペアごとに1枚ずつ)
         if auto_save:
-            output_filename = f"COS_2 and Contact over Time (ID:{id1} , ID:{id2}).png"
+            output_filename = f"COS_3 and Contact over Time (ID_{id1},{id2},{id3}).png"
             output_directory = os.path.dirname(velocity_csv_path)
             save_path = os.path.join(output_directory, output_filename)
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
             print(f" - COS変化グラフを保存しました: {save_path}")
         else:
-            print(f" - COS変化グラフを表示します: ID (ID:{id1} , ID:{id2})")
+            print(f" - COS変化グラフを表示します: ID (ID:{id1} , ID:{id2} , ID:{id3})")
             plt.show()
 
 
@@ -601,7 +597,7 @@ def plot_trio_cos(position_csv_path, velocity_csv_path, velocity_threshold, cont
 # メイン処理
 if __name__ == "__main__":
     # 位置データと速度データの両方を入力
-    INPUT_CSV = "20251101_01"
+    INPUT_CSV = "20251105_02"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
     CONTACT_THRESHOLD = 50.0
@@ -616,7 +612,7 @@ if __name__ == "__main__":
     # グラフのサイズを指定
     FIG_SIZE = (10, 5)
     # グラフの自動保存
-    AUTO_SAVE = False
+    AUTO_SAVE = True
 
     # 個体数の取得
     position_csv_path = INPUT_POSITION_CSV
