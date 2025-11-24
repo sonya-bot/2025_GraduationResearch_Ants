@@ -147,8 +147,6 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
     print(f" - 状態解析(全 {total_frames} Frame) が完了しました。")
 
 # 5.グラフの描画
-    # 色の定義
-    colors = plt.cm.viridis(np.linspace(0, 0.9, n_individuals))
 
     for size in range(1, n_individuals + 1):
         durations = duration_storage[size]
@@ -177,7 +175,7 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
             weights = np.ones_like(durations) / len(durations) * 100
             bins = np.logspace(np.log10(0.1), np.log10(100), 30) if use_loglog_plot else 30
             ax.hist(durations, bins=bins, weights=weights,
-                    label=label_text, color=colors[size-1],
+                    label=label_text,
                     alpha=0.7, edgecolor='black', histtype='bar', log=True)
     
             ax.set_ylim(0.1, 100)  # Y軸は対数スケールなので下限を0.1に設定
@@ -191,7 +189,7 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
             
             # コンソール出力
             mean_val = np.mean(durations)
-            print(f"  [Size {size}] Count: {len(durations)}, Mean: {mean_val:.2f}s")
+            print(f" [Size {size}] Count: {len(durations)}, Mean: {mean_val:.2f}s")
 
             # 保存または表示
             if auto_save:
