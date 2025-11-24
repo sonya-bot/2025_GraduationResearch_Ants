@@ -10,7 +10,7 @@ import networkx as nx
 import sys
 from itertools import combinations 
 
-def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig_size, auto_save, use_loglog_plot):
+def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig_size, auto_save, use_loglog_plot, show_pair_breakdown):
     """
     位置データから、個体の「所属グループサイズ」ごとの持続時間分布を計算し、
     片対数グラフ（Y軸対数）で描画する。
@@ -29,8 +29,8 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
 # 2.個体IDの特定と個体ごとの反復処理
     x_cols = [col for col in df_pos.columns if col.startswith('x')]
     individual_ids = [col[1:] for col in x_cols]
-
     n_individuals = len(individual_ids)
+
     if n_individuals <= 1:
         print(f"エラー: 検出された個体数が {n_individuals} のため、グラフを作成できません。")
         print("プログラムを終了します")
@@ -38,13 +38,16 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
     
     print(f"{n_individuals} 個体を検出しました。グループサイズの持続時間を解析します...")
 
-    # 持続時間の格納用辞書
+    # 持続時間の格納用辞書(全体)
     # Key: サイズ (1, 2, ..., N), Value: 持続時間(秒)のリスト
     duration_storage = {size: [] for size in range(1, n_individuals + 1)}
-
     # 個体の状態追跡用辞書
     # Key: 個体ID, Value: {'current_size': int, 'frame_count': int}
     tracker = {uid: {'current_size': 0, 'frame_count': 0} for uid in individual_ids}
+    # ペア別 (Size 2の内訳用)
+    pair_combinations = list(combinations(individual_ids, 2))
+    pair_duration_storage = {pair: [] for pair in pair_combinations}
+    pair_tracker = {pair: {'active': False, 'frame_count': 0} for pair in pair_combinations}
 
     # 座標データをNumpy配列化して高速化 (shape: フレーム数 x 2)
     coords_dict = {}
@@ -93,22 +96,34 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
         
         # 個体ID -> 現在のグループサイズ のマッピングを作成
         current_frame_sizes = {}
+
+        # size.2のフレームを特定
+        current_size2_pairs = set()
         
         for component in connected_components:
             size = len(component)
+            # pair状態の判定
+            if size == 2:
+                # componentはセットなので、ID順にソートしてタプル化し、キーとする
+                # (individual_idsの順序に従う)
+                comp_list = list(component)
+                comp_list.sort(key=lambda x: individual_ids.index(x))
+                pair_key = tuple(comp_list)
+                current_size2_pairs.add(pair_key)
+
+            # trio状態の判定
             if size == 3:
                 # この成分（グループ）の部分グラフを作成
                 subgraph = G.subgraph(component)
                 num_edges = subgraph.number_of_edges()
                 
+                # 接触状態別の判定
+                # エッジが3本 = Triangle (全結合)
                 if num_edges == 3:
-                    # エッジが3本 = Triangle (全結合)
                     stats_trio_triangle_frames += 1
-                    # print(f"Frame {i}: Triangle detected {component}") # デバッグ用
-                elif num_edges == 2:
-                    # エッジが2本 = Chain (鎖状)
+                # エッジが2本 = Chain (鎖状)
+                elif num_edges == 2: # chainをtrio結合としてみなさない場合は、これをコメントアウト
                     stats_trio_chain_frames += 1
-                    # print(f"Frame {i}: Chain detected {component}") # デバッグ用
 
                 # グラフ描画用には、形状に関わらず「Size 3」として統合して記録
             for uid in component:
@@ -136,15 +151,41 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
                 tracker[uid]['current_size'] = new_size
                 tracker[uid]['frame_count'] = 1
 
-                # ループ終了後の後処理 (最後の継続時間を記録)
+        # 4-4.ペア別の状態記録
+        for pair in pair_combinations:
+            # このペアが現在 Size 2 のグループを形成しているか？
+            is_active = pair in current_size2_pairs
+            
+            if is_active:
+                if pair_tracker[pair]['active']:
+                    # 継続中
+                    pair_tracker[pair]['frame_count'] += 1
+                else:
+                    # 開始
+                    pair_tracker[pair]['active'] = True
+                    pair_tracker[pair]['frame_count'] = 1
+            else:
+                if pair_tracker[pair]['active']:
+                    # 終了
+                    dur = pair_tracker[pair]['frame_count'] / FPS
+                    pair_duration_storage[pair].append(dur)
+                    pair_tracker[pair]['active'] = False
+                    pair_tracker[pair]['frame_count'] = 0
+
+    # ループ終了後の後処理 (最後の継続時間を記録)
+    # 個体全体
     for uid in individual_ids:
         size = tracker[uid]['current_size']
         count = tracker[uid]['frame_count']
         if size > 0:
             duration_sec = count / FPS
             duration_storage[size].append(duration_sec)
-
-    print(f" - 状態解析(全 {total_frames} Frame) が完了しました。")
+    
+    # ペアごと
+    for pair in pair_combinations:
+        if pair_tracker[pair]['active']:
+            dur = pair_tracker[pair]['frame_count'] / FPS
+            pair_duration_storage[pair].append(dur)
 
 # 5.グラフの描画
 
@@ -177,6 +218,22 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
             ax.hist(durations, bins=bins, weights=weights,
                     label=label_text,
                     alpha=0.7, edgecolor='black', histtype='bar', log=True)
+            
+            # ペアごとの内訳表示 (Size 2の場合のみ)
+            if size == 2 and show_pair_breakdown:
+                total_count_size2 = len(durations)
+                
+                for i, pair in enumerate(pair_combinations):
+                    pair_durs = pair_duration_storage[pair]
+                    if len(pair_durs) > 0:
+                        # 重み: Size 2 全体に対する割合を表示 (内訳なので)
+                        pair_weights = np.ones_like(pair_durs) / total_count_size2 * 100
+                        
+                        pair_label = f"Pair {pair[0]}-{pair[1]}"
+                        # ステッププロット (階段状の線) で重ねる
+                        ax.hist(pair_durs, bins=bins, weights=pair_weights,
+                                label=pair_label,
+                                histtype='step', linewidth=2.0, log=True)
     
             ax.set_ylim(0.1, 100)  # Y軸は対数スケールなので下限を0.1に設定
             ax.set_yscale('log')
@@ -193,11 +250,12 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
 
             # 保存または表示
             if auto_save:
-                output_filename = f"Contact_Duration_Distribution(N={n_individuals}).png"
+                output_filename = f"Contact_Duration_Distribution({label_text},N={n_individuals}).png"
                 output_directory = os.path.dirname(position_csv_path)
                 save_path = os.path.join(output_directory, output_filename)
                 plt.savefig(save_path, dpi=300, bbox_inches='tight')
                 print(f" - グラフを保存しました: {save_path}")
+                plt.close()
             else:
                 print(" - グラフを表示します")
                 plt.show()
@@ -216,5 +274,8 @@ if __name__ == "__main__":
     # 対数スケールの設定
     USE_LOGLOG_PLOT = True  # True: 両対数プロット, False: 半対数プロット
 
+    # ペアごとの分布を表示
+    SHOW_PAIR_BREAKDOWN = True
+
     # 関数を呼び出し
-    plot_contact_duration_distribution(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, USE_LOGLOG_PLOT)
+    plot_contact_duration_distribution(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, USE_LOGLOG_PLOT, SHOW_PAIR_BREAKDOWN)
