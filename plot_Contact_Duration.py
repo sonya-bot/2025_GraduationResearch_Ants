@@ -201,20 +201,29 @@ def plot_contact_duration_distribution(position_csv_path, contact_threshold, fig
             if size == 1: label_text += "Isolated"
             elif size == 2: label_text += "Pair"
             elif size == 3: label_text += "Trio"
-        
+
+
+            # 最大値と最小値の取得
+            data_max = np.max(durations)
+            data_min = np.min(durations)
+            # bin数のパラメータ化
+            loglog_bin = 30
+            semilog_bin = 40
             
             # 対数スケールの設定
             if use_loglog_plot:
-                ax.set_xlim(0.1,100)           
+                # ax.set_xlim(0.1,100)
+                bins = np.logspace(np.log10(data_min), np.log10(data_max), loglog_bin)
                 ax.set_xscale('log')
                 ax.set_xlabel('Duration (s) [Log Scale]', fontsize=12)
             else:
-                # ax.set_xlim(0)
+                bins = np.linspace(data_min, data_max, semilog_bin)
                 ax.set_xlabel('Duration (s)', fontsize=12)
+                ax.set_xlim(data_min, data_max)
 
             # ヒストグラム描画
             weights = np.ones_like(durations) / len(durations) * 100
-            bins = np.logspace(np.log10(0.1), np.log10(100), 30) if use_loglog_plot else 30
+            # bins = np.logspace(np.log10(0.1), np.log10(100), 30) if use_loglog_plot else 30
             ax.hist(durations, bins=bins, weights=weights,
                     label=label_text,
                     alpha=0.7, edgecolor='black', histtype='bar', log=True)
@@ -354,8 +363,6 @@ def plot_contact_duration_cumlative_sum(position_csv_path, contact_threshold, fi
             size = len(component)
             # pair状態の判定
             if size == 2:
-                # componentはセットなので、ID順にソートしてタプル化し、キーとする
-                # (individual_idsの順序に従う)
                 comp_list = list(component)
                 comp_list.sort(key=lambda x: individual_ids.index(x))
                 pair_key = tuple(comp_list)
@@ -371,8 +378,8 @@ def plot_contact_duration_cumlative_sum(position_csv_path, contact_threshold, fi
                 # エッジが3本 = Triangle (全結合)
                 if num_edges == 3:
                     stats_trio_triangle_frames += 1
-                # エッジが2本 = Chain (鎖状)
-                elif num_edges == 2: # chainをtrio結合としてみなさない場合は、これをコメントアウト
+                # エッジが2本 = Chain (鎖状) ,chainをtrio結合としてみなさない場合は、これをコメントアウト
+                elif num_edges == 2: 
                     stats_trio_chain_frames += 1
 
                 # グラフ描画用には、形状に関わらず「Size 3」として統合して記録
@@ -486,18 +493,17 @@ def plot_contact_duration_cumlative_sum(position_csv_path, contact_threshold, fi
             elif size == 2: label_text += "Pair"
             elif size == 3: label_text += "Trio"
         
-            
             # 対数スケールの設定
             if use_loglog_plot:
-                ax.set_xlim(0.1,100)           
-                ax.set_xscale('log')
-                ax.set_xlabel('Rank (ascending order)', fontsize=12)
+                # ax.set_xlim(0.1,100)           
+                # ax.set_xscale('log')
+                ax.set_ylabel('Rank (ascending order)', fontsize=12)
             else:
                 # ax.set_xlim(0)
-                ax.set_xlabel('Rank (ascending order)', fontsize=12)
+                ax.set_ylabel('Rank (ascending order)', fontsize=12)
         
         
-            ax.plot(ranks, cumsum, label=label_text, linewidth=3.0, color='black', alpha=0.5)
+            ax.plot(cumsum, ranks, label=label_text, linewidth=3.0, color='black', alpha=0.5)
 
             # Size 2 の場合、ペアごとの内訳を表示
             if size == 2 and show_pair_breakdown:
@@ -510,11 +516,12 @@ def plot_contact_duration_cumlative_sum(position_csv_path, contact_threshold, fi
                         p_ranks = np.arange(1, len(pair_durs) + 1)
                         
                         pair_label = f"Pair {pair[0]},{pair[1]}"
-                        ax.plot(p_ranks, p_cumsum, label=pair_label, linewidth=1.5)
+                        ax.plot(p_cumsum, p_ranks, label=pair_label, linewidth=1.5)
 
             # グラフ体裁
-            ax.set_title(f'Contact Duration: Cumulative Sum ({label_text},N={n_individuals})', fontsize=14)
-            ax.set_ylabel('Cumulative Duration (sec)', fontsize=12)
+            ax.set_title(f'Contact Duration Cumulative Sum: {label_text} (N={n_individuals})', fontsize=14)
+            ax.set_xlabel('Cumulative Duration (sec)', fontsize=12)
+            ax.set_xlim(0,10000)
             ax.grid(True, linestyle='--', alpha=0.6)
             ax.legend()
 
@@ -539,7 +546,7 @@ def plot_contact_duration_cumlative_sum(position_csv_path, contact_threshold, fi
 
 
 # 実行プログラムの設定
-RUN_PLOT_CONTACT_DURATION_DISTRIBUTION = True
+RUN_PLOT_CONTACT_DURATION_DISTRIBUTION = False
 RUN_PLOT_CONTACT_DURATION_CUMULATIVE_SUM = True
 
 
