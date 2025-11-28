@@ -552,14 +552,14 @@ RUN_PLOT_CONTACT_DURATION_CUMULATIVE_SUM = True
 
 if __name__ == "__main__":
     # 位置データの入力
-    INPUT_CSV = "20251101_01"
+    INPUT_CSV = "20251105_02"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     # 接触判定に使用するしきい値
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
     # グラフのサイズを指定
     FIG_SIZE = (10, 5)
     # グラフの自動保存設定
-    AUTO_SAVE = False
+    AUTO_SAVE = True
     # 対数スケールの設定
     USE_LOGLOG_PLOT = False  # True: 両対数プロット, False: 半対数プロット
 

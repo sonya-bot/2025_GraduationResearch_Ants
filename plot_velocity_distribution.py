@@ -162,7 +162,7 @@ def plot_histogram_dashboard(velocity_csv_path, remove_outliers, remove_threshol
 # メイン処理
 if __name__ == '__main__':
     # データの入力ファイル
-    INPUT_CSV = "20251030_02"
+    INPUT_CSV = "20251105_02"
     INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
@@ -177,6 +177,6 @@ if __name__ == '__main__':
     # グラフのサイズを指定
     FIG_SIZE = (10, 5) # 横長のグラフ
     # グラフの自動保存
-    AUTO_SAVE = False
+    AUTO_SAVE = True
 
     plot_histogram_dashboard(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, VELOCITY_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)

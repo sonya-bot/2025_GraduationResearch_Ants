@@ -5,10 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import platform
 import os
-import calculate_thresholds as calc # 閾値計算用のモジュールをインポート
+import calculate_thresholds  # 閾値計算用のモジュールをインポート
 from matplotlib.ticker import MaxNLocator, LogLocator
 
-def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, use_log_scale, fig_size, auto_save):
+def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, velocity_threshold, use_log_scale, fig_size, auto_save):
 # 1.データの読み込み
     try:
         df = pd.read_csv(velocity_csv_path)
@@ -56,6 +56,19 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, u
                 print(f" -  列 '{col}': {predefined_threshold:.2f} を超える {outlier_count} 個の外れ値を処理しました。")
                 df.loc[df[col] > predefined_threshold, col] = np.nan # 外れ値を NaN に置換
         print("外れ値の処理が完了しました。") 
+
+        # しきい値の取得
+        threshold_values, _ = calculate_thresholds.get_threshold_values(velocity_csv_path)
+        if threshold_values is None:
+            print("閾値の計算に失敗したため、プログラムを終了します。") 
+            return
+        else:
+            if velocity_threshold is not None:
+                selected_threshold = threshold_values.get(velocity_threshold)
+                print(f"使用する閾値のキー: {velocity_threshold}, 値: {selected_threshold}")
+            else:
+                print("閾値キーが None に設定されています。活動判定をスキップします。")
+                return # 閾値なしでは活動判定ができないため中断
 
     
 # 3.グラフの横軸となる時間(秒)への変換
@@ -115,6 +128,12 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, u
     # 凡例
     if len(individual_ids) <= 10:
         ax_overlay.legend(fontsize='small')
+    
+    # 閾値線の描画
+    if velocity_threshold is not None:
+        ax_overlay.axhline(y=selected_threshold, color='red', linestyle='--', linewidth=1.5, label=f'{velocity_threshold}: {selected_threshold:.1f}')
+        ax_overlay.legend(loc='upper right', fontsize='small')
+
 
     # グラフの自動保存設定
     if auto_save:
@@ -154,6 +173,11 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, u
             ax.set_ylim(bottom=0, top=y_axis_top_limit)
             ax.yaxis.set_major_locator(MaxNLocator(nbins=10))
 
+            # 閾値線の描画
+        if velocity_threshold is not None:
+            ax.axhline(y=selected_threshold, color='red', linestyle='--', linewidth=1.5, label=f'{velocity_threshold}: {selected_threshold:.1f}')
+            ax.legend(loc='upper right', fontsize='small')
+
         # グラフの自動保存設定
         if auto_save:
             output_filename = f"Speed_over_Time(ID_{i_id}).png"
@@ -167,7 +191,7 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, remove_threshold, u
 
 # メイン処理
 if __name__ == '__main__':
-    INPUT_CSV = "20251030_01"
+    INPUT_CSV = "20251105_02"
     INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position_velocity.csv"
     # 使用する閾値 KEY を選択
     # 'q1', 'median_q2', 'q3', 'avg_half' などから閾値のキーを選択(calculate_thresholdsで計算されるもの)
@@ -175,11 +199,12 @@ if __name__ == '__main__':
     # 外れ値を除去するかどうか (True: 除去する, False: 除去しない)
     REMOVE_OUTLIERS = True
     REMOVE_THRESHOLD = 200.0  # 外れ値とみなす速度の閾値 (ピクセル/フレーム)
+    VELOCITY_THRESHOLD = "avg_half" 
     # 縦軸を対数表示するかどうか (True: 対数表示, False: 通常表示)
     USE_LOG_SCALE = True
     # グラフのサイズを指定
     FIG_SIZE = (10, 5) # 横長のグラフ
     # グラフの自動保存
-    AUTO_SAVE = False
+    AUTO_SAVE = True
 
-    plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
+    plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, VELOCITY_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
