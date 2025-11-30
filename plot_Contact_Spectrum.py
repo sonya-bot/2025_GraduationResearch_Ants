@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-import numpy.fft as fft # ▼ 要件定義(v5) 6. Numpy FFTをインポート
+import numpy.fft as fft 
 import matplotlib.pyplot as plt
 import platform
 import os
@@ -51,7 +51,6 @@ def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, use_lo
         plot_trio_contact_spectrum(df_pos, individual_ids, sample_spacing_minutes, contact_threshold, fig_size, use_loglog_plot, auto_save, output_dir)
 
 
-
 def calculate_power_spectrum(contact_signal, sample_spacing_minutes):
     """ 
     二値シグナル(接触/非接触)からパワースペクトル(dB)を計算 
@@ -93,7 +92,6 @@ def calculate_power_spectrum(contact_signal, sample_spacing_minutes):
 
 
     return freq_per_min, F_log, valid_freqs, slope_pink, slope_brown
-
 
 def draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_size, use_loglog_plot, auto_save, title_text, save_path):
     """
@@ -141,7 +139,6 @@ def draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_si
         
 
     # 保存または表示
-    print(auto_save)
     if auto_save:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f" - グラフを保存しました: {save_path}")
@@ -150,7 +147,6 @@ def draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_si
         print(f" - グラフを表示します: {title_text}")
         plt.show()
     
-
 def plot_pair_contact_spectrum(df_pos, individual_ids, sample_spacing_minutes, contact_threshold, fig_size, use_loglog_plot, auto_save, save_path):
     """
     位置データからペア間の接触シグナルを生成し、
@@ -206,12 +202,96 @@ def plot_pair_contact_spectrum(df_pos, individual_ids, sample_spacing_minutes, c
 
     print("全てのペアの処理が完了しました")
 
+def plot_trio_contact_spectrum(df_pos, individual_ids, sample_spacing_minutes, contact_threshold, fig_size, use_loglog_plot, auto_save, save_path):
+    """
+    位置データからペア間の接触シグナルを生成し、
+    Numpy FFT を使って3個体の接触頻度パワースペクトルを計算・描画する。
+    グラフは次の2種類を作成する
+    ・3個体での接触(chain,triangle)
+    ・1個体 vs 2個体(1個体以外の2個体との接触)
+    """
+    trio_combinations = list(combinations(individual_ids, 3))
+    for id1, id2, id3 in trio_combinations:
+        print(f"\n処理中: トリオ (ID: {id1}, ID: {id2}, ID: {id3})")
+        
+    # 位置データ (df_pos) から、このペアのx, y座標を取得
+        pos_A_x, pos_A_y = f'x{id1}', f'y{id1}'
+        pos_B_x, pos_B_y = f'x{id2}', f'y{id2}'
+        pos_C_x, pos_C_y = f'x{id3}', f'y{id3}'
+        
+        # カラムが存在するかチェック (念のため)
+        if not all(col in df_pos.columns for col in [pos_A_x, pos_A_y, pos_B_x, pos_B_y, pos_C_x, pos_C_y]):
+            print(f"エラー: 座標カラムが見つかりません。このトリオをスキップします。")
+            continue
+    
+        # .to_numpy() を使って高速なNumpy計算
+        pos_A = df_pos[[pos_A_x, pos_A_y]].to_numpy()
+        pos_B = df_pos[[pos_B_x, pos_B_y]].to_numpy()
+        pos_C = df_pos[[pos_C_x, pos_C_y]].to_numpy()
+
+        #  接触判定のための距離計算
+        total_frames = len(df_pos)
+        frames = df_pos['position']
+
+        # 全フレームのユークリッド距離を計算
+        distances_AB = np.sqrt(np.sum((pos_A - pos_B)**2, axis=1))
+        distances_BC = np.sqrt(np.sum((pos_B - pos_C)**2, axis=1))
+        distances_CA = np.sqrt(np.sum((pos_C - pos_A)**2, axis=1))
+        # 2個体の接触をそれぞれ計算
+        contact_AB = (distances_AB <= contact_threshold)
+        contact_BC = (distances_BC <= contact_threshold)
+        contact_CA = (distances_CA <= contact_threshold)
+
+# 個体別 社会的リズム (1 vs 2) のグラフ作成
+        # 定義: 個体が他の2匹のいずれかと接触している (OR条件)
+        social_configs = [
+            (id1, contact_AB, contact_CA), # A vs (B or C)
+            (id2, contact_AB, contact_BC), # B vs (A or C)
+            (id3, contact_BC, contact_CA)  # C vs (B or A)
+        ]
+
+        for target_id, touch_1, touch_2 in social_configs:
+            social_signal = (touch_1 | touch_2).astype(float)
+            
+            freq, F_log, v_freqs, pink, brown = calculate_power_spectrum(social_signal, sample_spacing_minutes)
+            
+            if freq is not None:
+                print(f" - 振幅スペクトル (Social ID:{target_id}) を計算しました。")
+                title = f"Contact Spectrum (ID: {target_id} vs Others)"
+                file_name = f"Contact_Spectrum (ID:{target_id} vs Others).png"
+                full_save_path = os.path.join(save_path, file_name)
+                
+                draw_graph(freq, F_log, v_freqs, pink, brown, fig_size, use_loglog_plot, auto_save, title, full_save_path)
+
+        # 3個体の接触判定 (chain or triangle)
+        triangle_contact = (distances_AB <= contact_threshold) & (distances_BC <= contact_threshold) & (distances_CA <= contact_threshold)
+        any_chain_contact = ((distances_AB <= contact_threshold) & (distances_BC <= contact_threshold)) | \
+                            ((distances_BC <= contact_threshold) & (distances_CA <= contact_threshold)) | \
+                            ((distances_CA <= contact_threshold) & (distances_AB <= contact_threshold))
+        chain_contact = any_chain_contact & (~triangle_contact)
+        trio_contact_signal = (triangle_contact | chain_contact).astype(float)
+        print(f" - 3個体の接触判定 (全 {total_frames} Frame) を実行しました。")
+
+        freq_per_min, F_log, valid_freqs, slope_pink, slope_brown = calculate_power_spectrum(trio_contact_signal, sample_spacing_minutes)
+        print(f" - 振幅スペクトル (X軸: 回/分, Y軸: Log Amplitude) を計算しました。")
+
+# 6.グラフの描画(3個体の接触)
+        # タイトルと保存パスを生成して渡す
+        title_text = f"Contact Spectrum (Trio,N={len(individual_ids)})\n(Trio ID:{id1},{id2},{id3})"
+        save_title = f"Contact_Spectrum (Trio,ID:{id1},{id2},{id3}).png"
+        save_path = os.path.join(save_path, save_title)
+        draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_size, use_loglog_plot, auto_save, title_text, save_path)
+
+    print("全てのトリオの処理が完了しました")
+
+
+        
 
 
 # メイン処理
 if __name__ == "__main__":
     # 位置データの入力
-    INPUT_CSV = "20251107_01"
+    INPUT_CSV = "20251105_02"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     # 接触判定に使用するしきい値
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
