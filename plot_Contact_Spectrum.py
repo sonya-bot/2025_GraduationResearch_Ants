@@ -8,7 +8,7 @@ import platform
 import os
 from itertools import combinations 
 
-def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, auto_save, use_loglog_plot):
+def plot_contact_spectrum(position_csv_path, contact_threshold, fig_size, use_loglog_plot, auto_save):
     """
     入力データの確認及び
     個体数のカウント,
@@ -95,7 +95,7 @@ def calculate_power_spectrum(contact_signal, sample_spacing_minutes):
     return freq_per_min, F_log, valid_freqs, slope_pink, slope_brown
 
 
-def draw_graph(freq_per_min, F_log, fig_size, use_loglog_plot, auto_save, title_text, save_path):
+def draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_size, use_loglog_plot, auto_save, title_text, save_path):
     """
     グラフの描画を行う
     """
@@ -141,6 +141,7 @@ def draw_graph(freq_per_min, F_log, fig_size, use_loglog_plot, auto_save, title_
         
 
     # 保存または表示
+    print(auto_save)
     if auto_save:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
         print(f" - グラフを保存しました: {save_path}")
@@ -188,23 +189,22 @@ def plot_pair_contact_spectrum(df_pos, individual_ids, sample_spacing_minutes, c
         contact_signal = (distances <= contact_threshold).astype(float)
         
         total_frames = len(df_pos) #
-        contact_frames_count = contact_signal.sum()
+        # contact_frames_count = contact_signal.sum()
                 
-        print(f"  - 接触判定 (全 {total_frames} Frame) を実行しました。")
+        print(f" - 接触判定 (全 {total_frames} Frame) を実行しました。")
     
 # 5.フーリエ変換の実行
-        freq_per_min,F_log = calculate_power_spectrum(contact_signal, sample_spacing_minutes)
-        print(f"  - 振幅スペクトル (X軸: 回/分, Y軸: Log Amplitude) を計算しました。")
+        freq_per_min, F_log, valid_freqs, slope_pink, slope_brown = calculate_power_spectrum(contact_signal, sample_spacing_minutes)
+        print(f" - 振幅スペクトル (X軸: 回/分, Y軸: Log Amplitude) を計算しました。")
 
 # 6.グラフの描画
         # タイトルと保存パスを生成して渡す
         title_text = f"Contact Spectrum (Pair,N={len(individual_ids)})\n(Pair ID:{id1},{id2})"
         save_title = f"Contact_Spectrum (Pair,ID:{id1},{id2}).png"
         save_path = os.path.join(save_path, save_title)
-        draw_graph(freq_per_min, F_log, fig_size, use_loglog_plot, auto_save, title_text, save_path) # Removed ax from the call
-        print(f"  - グラフを描画しました。")
+        draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_size, use_loglog_plot, auto_save, title_text, save_path)
 
-print("全てのペアの処理が完了しました")
+    print("全てのペアの処理が完了しました")
 
 
 
