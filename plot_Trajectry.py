@@ -6,6 +6,83 @@ import matplotlib.pyplot as plt
 import os
 from itertools import combinations
 
+def calculate_field_boundary(all_x, all_y):
+    """
+    全個体の全座標から、フィールドの境界（中心と半径）を推定する。
+    """
+    valid_mask = ~np.isnan(all_x) & ~np.isnan(all_y)
+    x = all_x[valid_mask]
+    y = all_y[valid_mask]
+
+    if len(x) == 0:
+        return 0, 0, 0
+
+    min_x, max_x = np.min(x), np.max(x)
+    min_y, max_y = np.min(y), np.max(y)
+    
+    center_x = (min_x + max_x) / 2
+    center_y = (min_y + max_y) / 2
+    
+    # 半径はデータの広がりから推定
+    radius_x = (max_x - min_x) / 2
+    radius_y = (max_y - min_y) / 2
+    radius = max(radius_x, radius_y)
+    
+    return center_x, center_y, radius
+
+def draw_heatmap(x_data, y_data, title, save_path, grid_size, field_boundary, fig_size, auto_save):
+    """
+    共通のヒートマップ描画関数
+    """
+    plt.figure(figsize=fig_size)
+    ax = plt.gca()
+
+    # フィールド境界（円）の描画
+    cx, cy, r = field_boundary
+    circle = plt.Circle((cx, cy), r, fill=False, linestyle='--', linewidth=1.5, alpha=0.8)
+    ax.add_patch(circle)
+
+    # グリッド計算
+    margin = r * 0.1
+    x_min, x_max = cx - r - margin, cx + r + margin
+    y_min, y_max = cy - r - margin, cy + r + margin
+    
+    nx = int((x_max - x_min) / grid_size)
+    ny = int((y_max - y_min) / grid_size)
+    
+    if nx <= 0 or ny <= 0:
+        print("エラー: グリッドサイズ設定が不適切です。")
+        return
+
+    if len(x_data) > 0:
+        # ヒストグラム計算 (%表示)
+        weights = np.ones_like(x_data) / len(x_data) * 100
+        h = ax.hist2d(x_data, y_data, bins=[nx, ny], range=[[x_min, x_max], [y_min, y_max]],
+                      weights=weights, cmap='viridis', cmin=0.0001)
+        
+        # カラーバー
+        cbar = plt.colorbar(h[3], ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label('Frequency (%)', rotation=270, labelpad=15)
+    else:
+        print(f"警告: {title} の描画データがありません。")
+
+    # 装飾
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel('X position (pixels)', fontsize=12)
+    ax.set_ylabel('Y position (pixels)', fontsize=12)
+    ax.set_aspect('equal')
+    # 目盛は表示しない
+    ax.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
+
+    # 保存または表示
+    if auto_save:
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f" - ヒートマップを保存しました: {save_path}")
+        plt.close()
+    else:
+        print(f" - ヒートマップを表示します: {title}")
+        plt.show()
+
 def plot_trajectory(position_csv_path, contact_threshold, fig_size, auto_save, plot_contact):
     """
     位置データから個体の移動軌跡を描画し、接触した地点にマーカーをプロットする。
@@ -129,7 +206,6 @@ def plot_trajectory(position_csv_path, contact_threshold, fig_size, auto_save, p
     # 目盛は表示しない
     ax.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
 
-
     # 保存または表示
     if auto_save:
         output_filename = f"Trajectory_Map(N={n_individuals}).png"
@@ -141,12 +217,127 @@ def plot_trajectory(position_csv_path, contact_threshold, fig_size, auto_save, p
         print(" - 軌跡グラフを表示します")
         plt.show()
     
+
+
+def plot_stay_heatmap(position_csv_path, grid_size, fig_size, auto_save):
+    """
+    個体の滞在頻度（どこに長くいたか）をヒートマップで可視化する。
+    """
+    # データの読み込みとID特定
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+    except FileNotFoundError:
+        return
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+    n_individuals = len(individual_ids)
+    
+    if n_individuals == 0: return
+
+    print(f"{n_individuals} 個体の滞在分布を解析します...")
+
+    # 全座標データの収集
+    all_x_list = []
+    all_y_list = []
+    for uid in individual_ids:
+        x = df_pos[f'x{uid}'].to_numpy()
+        y = df_pos[f'y{uid}'].to_numpy()
+        valid_mask = ~np.isnan(x) & ~np.isnan(y)
+        all_x_list.append(x[valid_mask])
+        all_y_list.append(y[valid_mask])
+    
+    flat_x = np.concatenate(all_x_list)
+    flat_y = np.concatenate(all_y_list)
+    
+    # 境界推定と描画
+    field_boundary = calculate_field_boundary(flat_x, flat_y)
+    title = f"Stay Distribution Heatmap (N={n_individuals})"
+    output_dir = os.path.dirname(position_csv_path)
+    save_path = os.path.join(output_dir, f"Spatial_Distribution_Stay(N={n_individuals}).png")
+    
+    draw_heatmap(flat_x, flat_y, title, save_path, grid_size, field_boundary, fig_size, auto_save)
+
+
+def plot_contact_heatmap(position_csv_path, contact_threshold, grid_size, fig_size, auto_save):
+    """
+    接触が発生した場所（社会的ホットスポット）をヒートマップで可視化する。
+    """
+    # データの読み込み
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+    except FileNotFoundError:
+        return 
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+    n_individuals = len(individual_ids)
+    
+    if n_individuals < 2:
+        print("接触ヒートマップ: 個体数が2未満のためスキップします。")
+        return
+
+    print(f"{n_individuals} 個体の接触分布を解析します...")
+
+    coords_dict = {}
+    for uid in individual_ids:
+        coords_dict[uid] = df_pos[[f'x{uid}', f'y{uid}']].to_numpy()
+
+    # 境界推定用（全データ）
+    all_x_bound = np.concatenate([coords_dict[uid][:, 0] for uid in individual_ids])
+    all_y_bound = np.concatenate([coords_dict[uid][:, 1] for uid in individual_ids])
+    field_boundary = calculate_field_boundary(all_x_bound, all_y_bound)
+
+    # 接触座標の抽出
+    contact_x_list = []
+    contact_y_list = []
+    pair_combinations = list(combinations(individual_ids, 2))
+    
+    for id_a, id_b in pair_combinations:
+        pos_a = coords_dict[id_a]
+        pos_b = coords_dict[id_b]
+        dists = np.sqrt(np.sum((pos_a - pos_b)**2, axis=1))
+        contact_indices = np.where(dists <= contact_threshold)[0]
+        
+        if len(contact_indices) > 0:
+            contact_x_list.append(pos_a[contact_indices, 0])
+            contact_y_list.append(pos_a[contact_indices, 1])
+            contact_x_list.append(pos_b[contact_indices, 0])
+            contact_y_list.append(pos_b[contact_indices, 1])
+
+    if len(contact_x_list) == 0:
+        print("接触データがありませんでした。")
+        return
+
+    flat_contact_x = np.concatenate(contact_x_list)
+    flat_contact_y = np.concatenate(contact_y_list)
+    
+    # 描画
+    title = f"Contact Distribution Heatmap (N={n_individuals})"
+    output_dir = os.path.dirname(position_csv_path)
+    save_path = os.path.join(output_dir, f"Spatial_Distribution_Contact(N={n_individuals}).png")
+    
+    draw_heatmap(flat_contact_x, flat_contact_y, title, save_path, grid_size, field_boundary, fig_size, auto_save)
+
 if __name__ == "__main__":
     INPUT_CSV = "20251101_01"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     CONTACT_THRESHOLD = 50.0
     FIG_SIZE = (10, 5)
-    AUTO_SAVE = True
+    AUTO_SAVE = False
     PLOT_CONTACT = True # 接触点の表示
 
-    plot_trajectory(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, PLOT_CONTACT)
+    # ヒートマップの粒度(接触分布、滞在分布)
+    GRID_SIZE = 20
+
+    # 各機能のON/OFF
+    DO_PLOT_TRAJECTORY = True
+    DO_PLOT_STAY_HEATMAP = True
+    DO_PLOT_CONTACT_HEATMAP = True
+
+    if DO_PLOT_TRAJECTORY:
+        plot_trajectory(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, PLOT_CONTACT)
+
+    if DO_PLOT_STAY_HEATMAP:
+        plot_stay_heatmap(INPUT_POSITION_CSV, GRID_SIZE, FIG_SIZE, AUTO_SAVE)
+
+    if DO_PLOT_CONTACT_HEATMAP:
+        plot_contact_heatmap(INPUT_POSITION_CSV, CONTACT_THRESHOLD, GRID_SIZE, FIG_SIZE, AUTO_SAVE)
