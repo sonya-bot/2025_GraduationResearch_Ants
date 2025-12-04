@@ -111,6 +111,8 @@ def draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_si
     # (0.01 回/分 から表示)
     # ax.set_xlim(0.01, freq_per_min.max()) 
     # ax.set_xlim(-1,10)
+    # y軸の範囲を調整
+    ax.set_ylim(F_log.min() - 0.5, 0)
     
     # Y軸 (対数変換済みのため、スケールは 'linear')
     ax.set_ylabel('Amplitude(Log Scale)', fontsize=12) #
@@ -120,7 +122,7 @@ def draw_graph(freq_per_min, F_log, valid_freqs, slope_pink, slope_brown, fig_si
         # 対数スケールの設定
     if use_loglog_plot:
         # ax.set_xlim(0.1,100)           
-        # ax.set_xscale('log')
+        ax.set_xscale('log')
         ax.set_xlabel('Frequency(Log Scale) [/min]', fontsize=12) #
     else:
         # ax.set_xlim(0)
@@ -291,7 +293,7 @@ def plot_trio_contact_spectrum(df_pos, individual_ids, sample_spacing_minutes, c
 # メイン処理
 if __name__ == "__main__":
     # 位置データの入力
-    INPUT_CSV = "20251105_02"
+    INPUT_CSV = "20251101_01"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     # 接触判定に使用するしきい値
     CONTACT_THRESHOLD = 50.0  # ピクセル単位の接触しきい値
