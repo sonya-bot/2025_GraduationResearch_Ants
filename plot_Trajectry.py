@@ -3,8 +3,45 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors
 import os
 from itertools import combinations
+
+def plot_trajectry(position_csv_path, contact_threshold, fig_size, auto_save, plot_contact, grid_size):
+    """
+    入力データの確認、個体数のカウントを行い
+    実行する関数を呼び出す
+    位置データから個体の移動軌跡を描画し、接触した地点にマーカーをプロットする。
+    Hayashi et al. (2015) Fig. 5 の形式に倣う。
+    """
+    # 1.データの読み込み
+    try:
+        df_pos = pd.read_csv(position_csv_path)
+        print(f"'{position_csv_path}'を正常に読み込みました。")
+    except FileNotFoundError:
+        print(f"エラー: ファイルが見つかりません - {position_csv_path}")
+        return
+    
+    # 2.個体IDの特定と個体ごとの反復処理
+    x_cols = [col for col in df_pos.columns if col.startswith('x')]
+    individual_ids = [col[1:] for col in x_cols]
+
+    n_individuals = len(individual_ids)
+    if n_individuals < 1:
+        print(f"エラー: 個体を検出できません")
+        print("プログラムを終了します")
+        return
+    elif n_individuals >= 1:
+        print(f"{n_individuals}匹の個体が検出されました。軌跡の描画を行います。")
+        plot_trajectory_hist(position_csv_path, contact_threshold, fig_size, auto_save, plot_contact)
+        if n_individuals >= 2:
+            print(f"2匹以上の個体が検出されました。軌跡の描画とヒストグラムの作成を行います。")
+            plot_stay_heatmap(position_csv_path, grid_size, fig_size, auto_save)
+            plot_contact_heatmap(position_csv_path, contact_threshold, grid_size, fig_size, auto_save)
+    
+
+    
+
 
 def calculate_field_boundary(all_x, all_y):
     """
@@ -39,7 +76,7 @@ def draw_heatmap(x_data, y_data, title, save_path, grid_size, field_boundary, fi
 
     # フィールド境界（円）の描画
     cx, cy, r = field_boundary
-    circle = plt.Circle((cx, cy), r, fill=False, linestyle='--', linewidth=1.5, alpha=0.8)
+    circle = plt.Circle((cx, cy), r, fill=False, linestyle='--', linewidth=1.5, alpha=0.8, zorder=10)
     ax.add_patch(circle)
 
     # グリッド計算
@@ -57,19 +94,24 @@ def draw_heatmap(x_data, y_data, title, save_path, grid_size, field_boundary, fi
     if len(x_data) > 0:
         # ヒストグラム計算 (%表示)
         weights = np.ones_like(x_data) / len(x_data) * 100
+        # normで色の範囲をパーセンテージに合わせて調整 (例: 0.01% から 10%)
         h = ax.hist2d(x_data, y_data, bins=[nx, ny], range=[[x_min, x_max], [y_min, y_max]],
-                      weights=weights, cmap='viridis', cmin=0.0001)
+                      weights=weights, cmap='coolwarm', norm=matplotlib.colors.LogNorm(vmin=1e-2, vmax=1e1))
+        H = h[0] # ヒストグラムのデータ
         
         # カラーバー
         cbar = plt.colorbar(h[3], ax=ax, fraction=0.046, pad=0.04)
         cbar.set_label('Frequency (%)', rotation=270, labelpad=15)
+
+        # # 等高線の表示
+        # ax.contour(H.T, extent=[x_min, x_max, y_min, y_max], colors='black', linewidths=0.5, alpha=0.7, zorder=5)
     else:
         print(f"警告: {title} の描画データがありません。")
 
     # 装飾
     ax.set_title(title, fontsize=14)
-    ax.set_xlabel('X position (pixels)', fontsize=12)
-    ax.set_ylabel('Y position (pixels)', fontsize=12)
+    ax.set_xlabel('X position [pixels]', fontsize=12)
+    ax.set_ylabel('Y position [pixels]', fontsize=12)
     ax.set_aspect('equal')
     # 目盛は表示しない
     ax.tick_params(labelbottom=False, labelleft=False, labelright=False, labeltop=False)
@@ -83,7 +125,7 @@ def draw_heatmap(x_data, y_data, title, save_path, grid_size, field_boundary, fi
         print(f" - ヒートマップを表示します: {title}")
         plt.show()
 
-def plot_trajectory(position_csv_path, contact_threshold, fig_size, auto_save, plot_contact):
+def plot_trajectory_hist(position_csv_path, contact_threshold, fig_size, auto_save, plot_contact):
     """
     位置データから個体の移動軌跡を描画し、接触した地点にマーカーをプロットする。
     Hayashi et al. (2015) Fig. 5 の形式に倣う。
@@ -318,7 +360,7 @@ def plot_contact_heatmap(position_csv_path, contact_threshold, grid_size, fig_si
     draw_heatmap(flat_contact_x, flat_contact_y, title, save_path, grid_size, field_boundary, fig_size, auto_save)
 
 if __name__ == "__main__":
-    INPUT_CSV = "20251101_01"
+    INPUT_CSV = "20251117_01"
     INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
     CONTACT_THRESHOLD = 50.0
     FIG_SIZE = (10, 5)
@@ -328,16 +370,18 @@ if __name__ == "__main__":
     # ヒートマップの粒度(接触分布、滞在分布)
     GRID_SIZE = 20
 
-    # 各機能のON/OFF
-    DO_PLOT_TRAJECTORY = True
-    DO_PLOT_STAY_HEATMAP = True
-    DO_PLOT_CONTACT_HEATMAP = True
+    plot_trajectry(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, PLOT_CONTACT, GRID_SIZE)
 
-    if DO_PLOT_TRAJECTORY:
-        plot_trajectory(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, PLOT_CONTACT)
+    # # 各機能のON/OFF
+    # DO_PLOT_TRAJECTORY = True
+    # DO_PLOT_STAY_HEATMAP = True
+    # DO_PLOT_CONTACT_HEATMAP = True
 
-    if DO_PLOT_STAY_HEATMAP:
-        plot_stay_heatmap(INPUT_POSITION_CSV, GRID_SIZE, FIG_SIZE, AUTO_SAVE)
+    # if DO_PLOT_TRAJECTORY:
+    #     plot_trajectory_hist(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, PLOT_CONTACT)
 
-    if DO_PLOT_CONTACT_HEATMAP:
-        plot_contact_heatmap(INPUT_POSITION_CSV, CONTACT_THRESHOLD, GRID_SIZE, FIG_SIZE, AUTO_SAVE)
+    # if DO_PLOT_STAY_HEATMAP:
+    #     plot_stay_heatmap(INPUT_POSITION_CSV, GRID_SIZE, FIG_SIZE, AUTO_SAVE)
+
+    # if DO_PLOT_CONTACT_HEATMAP:
+    #     plot_contact_heatmap(INPUT_POSITION_CSV, CONTACT_THRESHOLD, GRID_SIZE, FIG_SIZE, AUTO_SAVE)
