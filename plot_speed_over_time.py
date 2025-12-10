@@ -66,7 +66,9 @@ def calculate_speed(df_vel, individual_ids, remove_outliers):
     
     return df_vel
 
-def draw_graph(plot_data, x_data, fig_size, title_text, use_x_log, x_label, use_y_log, y_label, y_fixed_range=None, y_tick_labels=None , auto_save=False, save_path ="graph.png"):
+def draw_graph(plot_data, x_data, fig_size, title_text,
+               use_x_log, x_label, use_y_log, y_label, y_fixed_range=None, y_tick_labels=None,
+               plot_velocity_threshold=None, auto_save=False, save_path ="graph.png"):
     """
     グラフの描画、設定、保存を一括で行う共通関数。
     """
@@ -109,6 +111,11 @@ def draw_graph(plot_data, x_data, fig_size, title_text, use_x_log, x_label, use_
                 ax.set_yticks(ticks)
                 ax.set_yticklabels(labels)
 
+    # 速度閾値のプロット
+    if plot_velocity_threshold is not None:
+        threshold = plot_velocity_threshold
+        ax.axhline(y=threshold, color='red', linestyle='--', linewidth=1.0, label=f'Threshold: {threshold:.1f}')
+
 
     # 凡例
     if len(plot_data) <= 10:
@@ -124,7 +131,7 @@ def draw_graph(plot_data, x_data, fig_size, title_text, use_x_log, x_label, use_
         plt.show()
         
 
-def plot_speed_over_time(velocity_csv_path, remove_outliers, use_x_log, use_y_log, fig_size, auto_save):
+def plot_speed_over_time(velocity_csv_path, remove_outliers , velocity_threshold, plot_velocity_threshold, use_x_log, use_y_log, fig_size, auto_save):
     """
     速度の時系列データをプロットするメイン関数。
     """
@@ -132,6 +139,15 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, use_x_log, use_y_lo
     df_vel, speed_cols, output_dir, time_minutes, individual_ids = data_input(velocity_csv_path)
     if df_vel is None: return # 読み込み失敗時は終了
     df_vel = calculate_speed(df_vel, individual_ids, remove_outliers)
+
+# 閾値のプロットを行う場合、個体ごとの閾値を取得    
+    ind_thresh_map = {}
+    
+    if plot_velocity_threshold:
+        _, individual_res_list = calculate_thresholds.get_threshold_values(velocity_csv_path)
+        if individual_res_list:
+            ind_thresh_map = {res['id']: res.get(velocity_threshold) for res in individual_res_list}
+            print(f"閾値線を描画します (Key: {velocity_threshold})")
     
 
 # 2. 全個体の速度データをプロット (Overlay)
@@ -147,6 +163,7 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, use_x_log, use_y_lo
         x_label='Time (min)',
         use_y_log=use_y_log,
         y_label='Speed (pixels/frame)',
+        plot_velocity_threshold=None, # 全体グラフでは閾値は表示しない
         auto_save=auto_save,
         save_path=save_path_all,
     )
@@ -155,6 +172,8 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, use_x_log, use_y_lo
     for i_id in individual_ids:
         ind_plot_data = {f'Speed of {i_id}': df_vel[f'speed_{i_id}']}
         save_path_ind = os.path.join(output_dir, f"Speed_over_Time_(ID_{i_id}).png")
+
+        ind_threshold = ind_thresh_map.get(i_id) if plot_velocity_threshold else None
         
         draw_graph(
             plot_data=ind_plot_data,
@@ -165,6 +184,7 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers, use_x_log, use_y_lo
             x_label='Time (min)',
             use_y_log=use_y_log,
             y_label='Speed',
+            plot_velocity_threshold=ind_threshold,
             auto_save=auto_save,
             save_path=save_path_ind,
         )
@@ -173,7 +193,7 @@ def plot_activity_state(velocity_csv_path, remove_outliers, velocity_threshold, 
     """
     各個体の速度データをもとに、活動状態(0/1)を計算・描画する。
     """
-# 1. データ読み込み & 前処理 (戻り値を4つに修正)
+# 1. データ読み込み
     df_vel, speed_cols, output_dir, time_minutes, individual_ids = data_input(velocity_csv_path)
     if df_vel is None: return 
 
@@ -233,41 +253,8 @@ def plot_activity_state(velocity_csv_path, remove_outliers, velocity_threshold, 
             auto_save=auto_save,
             save_path=save_path
         )
-
-        # # 4. グラフの描画
-        # plt.figure(figsize=fig_size)
-        # ax = plt.gca()
-
-        # # 活動状態の時系列をステッププロット
-        # ax.step(time_minutes, activity_state, where='mid', 
-        #         label=f'Activity State (ID:{individual_id})', linewidth=1.0)
-
-        # # タイトルとラベル
-        # ax.set_title(f'Activity State over Time (ID:{individual_id})', fontsize=14)
-        # ax.set_xlabel('Time (minutes)', fontsize=12)
-        # ax.set_ylabel('State of Activity', fontsize=12)
-        
-        # # 軸の設定
-        # total_time = time_minutes.max()
-        # ax.set_xlim(0, total_time)
-        # ax.set_yticks([0, 1])
-        # ax.set_yticklabels(['Inactive (0)', 'Active (1)'])
-        # ax.set_ylim(-0.2, 1.2)
-        
-        # # グリッド
-        # ax.grid(axis='y', linestyle='--', alpha=0.7)
-        # ax.legend(loc='upper right')
-
-        # # 5. 保存または表示
-        # if auto_save:
-        #     output_filename = f"Activity_State_over_Time_(ID_{individual_id}).png"
-        #     save_path = os.path.join(output_dir, output_filename)
-        #     plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        #     print(f" - ID {individual_id} の活動状態グラフを保存しました")
-        #     plt.close()
-        # else:
-        #     print(f" - ID {individual_id} の活動状態グラフを表示します")
-        #     plt.show()
+    
+    return selected_threshold # 閾値プロット用に返す 
 
     print("全ての個体の処理が完了しました")
     
@@ -278,10 +265,11 @@ if __name__ == '__main__':
     
     REMOVE_OUTLIERS = True
     VELOCITY_THRESHOLD = "avg_half"
+    PLOT_VELOCITY_THRESHOLD = True # 速度閾値をプロットするかどうか
     USE_Y_LOG = True
     USE_X_LOG = False
     FIG_SIZE = (6, 4)
     AUTO_SAVE = False
 
-    plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
+    plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, VELOCITY_THRESHOLD ,PLOT_VELOCITY_THRESHOLD, USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
     plot_activity_state(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS,VELOCITY_THRESHOLD , USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
