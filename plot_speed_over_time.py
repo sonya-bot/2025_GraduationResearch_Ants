@@ -37,7 +37,8 @@ def data_input(velocity_csv_path):
     speed_cols = [col for col in df_vel.columns if col.startswith('speed_')]
     individual_ids = [col.replace('speed_', '') for col in speed_cols]
 
-    return df_vel, speed_cols, output_dir, time_minutes, individual_ids
+    return df_vel, speed_cols, output_dir, time_minutes, individual_ids, FPS
+
 
 
 def calculate_speed(df_vel, individual_ids, remove_outliers):
@@ -65,6 +66,34 @@ def calculate_speed(df_vel, individual_ids, remove_outliers):
         print("外れ値の処理が完了しました。") 
     
     return df_vel
+
+def calculate_states(velocity_csv_path, remove_outliers, velocity_threshold_key):
+    """
+    データ読み込み、速度計算、閾値判定を行い、
+    全個体の「活動状態(0/1)の時系列データ」を辞書で返す共通関数。
+    """
+    # 1. データ読み込み
+    df_vel, speed_cols, output_dir, time_minutes, individual_ids, FPS = data_input(velocity_csv_path)
+    if df_vel is None: return None, None, None, None, None
+
+    # 2. 速度計算
+    df_vel = calculate_speed(df_vel, individual_ids, remove_outliers)
+
+    # 3. 閾値取得
+    _, individual_results_list = calculate_thresholds.get_threshold_values(velocity_csv_path)
+    thresh_map = {res['id']: res for res in individual_results_list}
+
+    # 4. 状態判定 (0/1化)
+    activity_states = {}
+    for uid in individual_ids:
+        ind_res = thresh_map.get(uid)
+        if ind_res:
+            th = ind_res.get(velocity_threshold_key)
+            speed_col = f'speed_{uid}'
+            # 0/1 の配列を格納
+            activity_states[uid] = (df_vel[speed_col] > th).astype(int)
+            
+    return activity_states, output_dir, time_minutes, individual_ids, FPS
 
 def draw_graph(plot_data, x_data, fig_size, title_text,
                use_x_log, x_label, use_y_log, y_label, y_fixed_range=None, y_tick_labels=None,
@@ -136,7 +165,7 @@ def plot_speed_over_time(velocity_csv_path, remove_outliers , velocity_threshold
     速度の時系列データをプロットするメイン関数。
     """
 # 1. データ読み込み & 前処理
-    df_vel, speed_cols, output_dir, time_minutes, individual_ids = data_input(velocity_csv_path)
+    df_vel, speed_cols, output_dir, time_minutes, individual_ids, FPS= data_input(velocity_csv_path)
     if df_vel is None: return # 読み込み失敗時は終了
     df_vel = calculate_speed(df_vel, individual_ids, remove_outliers)
 
@@ -194,49 +223,19 @@ def plot_activity_state(velocity_csv_path, remove_outliers, velocity_threshold, 
     各個体の速度データをもとに、活動状態(0/1)を計算・描画する。
     """
 # 1. データ読み込み
-    df_vel, speed_cols, output_dir, time_minutes, individual_ids = data_input(velocity_csv_path)
-    if df_vel is None: return 
-
-    # 速度データの数値化と外れ値処理 (修正済みの calculate_speed を使用)
-    df_vel = calculate_speed(df_vel, individual_ids, remove_outliers)
-
-# 2. 閾値情報の取得
-    _, individual_results_list = calculate_thresholds.get_threshold_values(velocity_csv_path)
-    
-    if individual_results_list is None:
-        print("閾値の計算に失敗したため、プログラムを終了します。")
-        return
-
-    # 個体IDをキーにした辞書に変換
-    thresh_map = {res['id']: res for res in individual_results_list}
+    activity_states, output_dir, time_minutes, individual_ids, FPS = calculate_states(velocity_csv_path, remove_outliers, velocity_threshold)
+    if activity_states is None: return
 
     print(f"{len(individual_ids)} 個体の活動状態グラフを作成します...")
 
-# 3. 個体ごとのループ処理 (修正済み)
+    # 3. 個体ごとのループ処理
     for individual_id in individual_ids:
-        # この個体の閾値データを取得
-        ind_res = thresh_map.get(individual_id)
-        if ind_res is None:
-            print(f"ID: {individual_id} の閾値データが見つかりません。スキップします。")
-            continue
-
-        if velocity_threshold is not None:
-            # 指定されたキー(例: 'avg_half')の値を取得
-            selected_threshold = ind_res.get(velocity_threshold)
-        else:
-            print("閾値キーが None です。スキップします。")
-            continue
-
-        # 活動状態の計算 (1:活動, 0:非活動)
-        speed_col_name = f'speed_{individual_id}'
-        activity_state = (df_vel[speed_col_name] > selected_threshold).astype(int)
+        activity_state = activity_states[individual_id]
 
         # 4.グラフの描画
-        # プロット用データ作成
         plot_data = {f'Activity State (ID:{individual_id})': activity_state}
         save_path = os.path.join(output_dir, f"Activity_State_over_Time_(ID_{individual_id}).png")
         
-        # 活動状態用の設定
         yticks_settings = ([0, 1], ['Inactive \n (0)', 'Active \n (1)'])
 
         draw_graph(
@@ -246,17 +245,106 @@ def plot_activity_state(velocity_csv_path, remove_outliers, velocity_threshold, 
             title_text=f'Activity State over Time (ID:{individual_id})',
             use_x_log=use_x_log, 
             x_label='Time (min)',
-            use_y_log=False, # 活動状態グラフは2値なので対数にする必要はない
+            use_y_log=False, # 活動状態グラフは2値
             y_label='State of Activity',
-            y_fixed_range=(-0.2, 1.2),       # Y軸範囲を固定
-            y_tick_labels=yticks_settings,    # カスタム目盛り
+            y_fixed_range=(-0.2, 1.2),
+            y_tick_labels=yticks_settings,
             auto_save=auto_save,
             save_path=save_path
         )
-    
-    return selected_threshold # 閾値プロット用に返す 
+
+
+def plot_activity_duration_cumlative_sum(velocity_csv_path, remove_outliers, velocity_threshold, use_x_log, use_y_log, fig_size, auto_save):
+    """
+    各個体の活動持続時間の累積和グラフを描画する。
+    持続時間が短い順にソートして表示する。
+    """
+    # 1. 共通関数を使って状態データを取得
+    activity_states, output_dir, _, individual_ids, FPS = calculate_states(velocity_csv_path, remove_outliers, velocity_threshold)
+    if activity_states is None: return
+
+    print(f"{len(individual_ids)} 個体の活動持続時間(累積和)グラフを作成します...")
+
+    for uid in individual_ids:
+        # 0/1配列を取得
+        states = activity_states[uid].values
+
+        # 状態の変化点を検出
+        diffs = np.diff(states)
+        change_indices = np.where(diffs != 0)[0] + 1
+        
+        # 区間の開始と終了インデックス
+        indices = np.concatenate(([0], change_indices, [len(states)]))
+        
+        # 各区間の長さ（フレーム数）と、その時の状態（0か1か）
+        durations = np.diff(indices)
+        values = states[indices[:-1]]
+        
+        # Active(1) と Inactive(0) に振り分け
+        active_durs = durations[values == 1] / FPS   # 秒に変換
+        inactive_durs = durations[values == 0] / FPS # 秒に変換
+        # 昇順ソート
+        active_durs.sort()
+        inactive_durs.sort()
+        
+        # 累積和 (Cumulative Duration)
+        active_cumsum = np.cumsum(active_durs)
+        inactive_cumsum = np.cumsum(inactive_durs)
+        
+        # ランク (1, 2, ...)
+        active_ranks = np.arange(1, len(active_durs) + 1)
+        inactive_ranks = np.arange(1, len(inactive_durs) + 1)
+        
+        # --- グラフ描画 (専用処理) ---
+        plt.figure(figsize=fig_size)
+        ax = plt.gca()
+        
+        # Active (赤)
+        if len(active_durs) > 0:
+            ax.plot(active_cumsum, active_ranks, label='Active', color='red', linewidth=2.0, alpha=0.5)
+        
+        # Inactive (青/グレー)
+        if len(inactive_durs) > 0:
+            ax.plot(inactive_cumsum, inactive_ranks, label='Inactive', color='blue', linewidth=2.0, alpha=0.5)
+            
+        ax.set_title(f'Activity Duration Cumulative Sum (ID:{uid})', fontsize=14)
+        ax.set_xlabel('Cumulative Duration (sec)', fontsize=12)
+        ax.set_ylabel('Rank (ascending order)', fontsize=12)
+        
+        # if use_y_log:
+        #     ax.set_yscale('log')
+        #     ax.set_ylabel('Rank (ascending order) [Log Scale]', fontsize=12)
+        
+        if use_x_log:
+            ax.set_xscale('log')
+            ax.set_xlabel('Cumulative Duration (sec) [Log Scale]', fontsize=12)
+
+        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.legend()
+        
+        # コンソール出力 (デバッグ用)
+        print(f" [ID:{uid}] Active Count: {len(active_durs)}, Max Dur: {np.max(active_durs) if len(active_durs)>0 else 0:.1f}s")
+        print(f" [ID:{uid}] Inactive Count: {len(inactive_durs)}, Max Dur: {np.max(inactive_durs) if len(inactive_durs)>0 else 0:.1f}s")
+
+        # 保存または表示
+        if auto_save:
+            output_filename = f"Activity_Duration_Cumulative_Sum(ID_{uid}).png"
+            save_path = os.path.join(output_dir, output_filename)
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f" - グラフを保存しました: {save_path}")
+            plt.close()
+        else:
+            print(f" - グラフを表示します: ID {uid}")
+            plt.show()
+
+
 
     print("全ての個体の処理が完了しました")
+
+# 実行プログラム設定
+RUN_SPEED_OVER_TIME = False
+RUN_ACTIVITY_STATE = False
+RUN_ACTIVITY_DURATION_CUMULATIVE_SUM = True
     
 if __name__ == '__main__':
 # メイン処理
@@ -271,5 +359,10 @@ if __name__ == '__main__':
     FIG_SIZE = (6, 4)
     AUTO_SAVE = False
 
-    plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, VELOCITY_THRESHOLD ,PLOT_VELOCITY_THRESHOLD, USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
-    plot_activity_state(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS,VELOCITY_THRESHOLD , USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
+# 選択した処理を実行
+    if RUN_SPEED_OVER_TIME:
+        plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, VELOCITY_THRESHOLD ,PLOT_VELOCITY_THRESHOLD, USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
+    if RUN_ACTIVITY_STATE:
+        plot_activity_state(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS,VELOCITY_THRESHOLD , USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
+    if RUN_ACTIVITY_DURATION_CUMULATIVE_SUM:
+        plot_activity_duration_cumlative_sum(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, VELOCITY_THRESHOLD , USE_X_LOG, USE_Y_LOG, FIG_SIZE, AUTO_SAVE)
