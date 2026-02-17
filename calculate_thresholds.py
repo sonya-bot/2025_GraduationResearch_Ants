@@ -19,6 +19,7 @@ def get_threshold_values(input_filename):
             第3四分位数 (q3)
             しきい値 (avg_half, Hayashi,2015に基づく)
     """
+    FPS = 2.0 # 1フレーム=1/2秒
     try:
         df = pd.read_csv(input_filename)
     except FileNotFoundError:
@@ -29,6 +30,27 @@ def get_threshold_values(input_filename):
     if not speed_cols:
         print("速さのデータ(speed_...)の列が見つかりません。")
         return None, None
+    
+    # 外れ値処理 (追加推奨)
+    # 平滑化の前に異常なスパイクを除去します
+    outlier_threshold = 200.0  # 必要に応じて調整
+    for col in speed_cols:
+        # 数値化（念のため）
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+        # 閾値超えをNaNにする（平滑化時に無視されるか、補間されることを期待）
+        # ※rolling().mean()はNaNをスキップして計算可能です
+        df.loc[df[col] > outlier_threshold, col] = np.nan
+    
+    # 平滑化処理(Hayashi,2012)に従う
+    # 60秒間 (FPS x 60) の移動平均をとる
+    smoothing_window = int(60 * FPS)
+    if smoothing_window > 1:
+        print(f"60秒間(Frames={smoothing_window})の移動平均を適用します。")
+        for col in speed_cols:
+            # center=True: 位相ズレを防ぐ
+            # min_periods=1: 端のデータも可能な限り計算する
+            df[col] = df[col].rolling(window=smoothing_window, center=True, min_periods=1).mean()
+            df[col] = df[col].fillna(0)
 
     # 各個体の結果を格納するリスト
     individual_results_list = []

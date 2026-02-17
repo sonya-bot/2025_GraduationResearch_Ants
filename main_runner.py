@@ -8,10 +8,8 @@ import plot_distance_over_time
 import plot_COS_Over_Time
 import plot_Contact_Spectrum
 
-# -----------------------------------------------------------------------------
 # ◆◆◆ 実行設定 ◆◆◆
 # 実行したい分析を True に設定してください。
-# -----------------------------------------------------------------------------
 RUN_CALCULATE_VELOCITY = True         # True: 位置データから速度を計算する
 RUN_PLOT_SPEED_OVER_TIME = False       # True: 時間ごとの速度変化グラフを描画する
 RUN_PLOT_VELOCITY_DISTRIBUTION = False # True: 速度の分布（ヒストグラム）を描画する
@@ -21,17 +19,34 @@ RUN_PLOT_DISTANCE_OVER_TIME = False   # True: 個体ペア間の距離の時間�
 RUN_PLOT_COS_OVER_TIME = False        # True: COSの値の時間変化グラフを描画する
 RUN_PLOT_CONTACT_SPECTRUM = True     # True: 接触頻度のパワースペクトルグラフを描画する
 
-# -----------------------------------------------------------------------------
-# ◆◆◆ パラメータ設定 ◆◆◆
-# -----------------------------------------------------------------------------
-# --- 基本ファイル設定 ---
-# ここで実行ファイルの日付を入力(複数入力可)
-INPUT_CSVS = ["20251105_01","20251104_02"]  # 日時の指定だけで良い
 
-# --- 各スクリプトの詳細設定 ---
-# CSVファイルの設定
-INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSVS}/{INPUT_CSVS}-position.csv"
-INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSVS}/{INPUT_CSVS}-position_velocity.csv"
+# 入力ファイル
+COLONIES = {
+    "ISO_DICT": {
+        "Colony A": "20251030_01", "Colony B": "20251104_02", "Colony C": "20251106_01",
+        "Colony D": "20251113_01", "Colony E": "20251117_02", "Colony G": "20251119_01",
+        "Colony H": "20251120_02", "Colony I": "20251127_01",
+    },
+    "PAIR_DICT": {
+        "Colony A": "20251030_02", "Colony B": "20251105_01", "Colony C": "20251107_01",
+        "Colony D": "20251113_03", "Colony E": "20251118_01", "Colony G": "20251119_02",
+        "Colony H": "20251121_01", "Colony I": "20251127_02",
+    },
+    "TRIO_DICT": {
+        "Colony A": "20251101_01", "Colony B": "20251105_02", "Colony C": "20251110_01",
+        "Colony D": "20251117_01", "Colony E": "20251118_02", "Colony G": "20251120_01",
+        "Colony H": "20251126_01", "Colony I": "20251128_01",
+    }
+}
+
+# 基本ファイルパス指定
+PATHS = {
+    "Windows": r"d:/analysis_data",
+    "Mac":  r"/Volumes/100.108.13.8/analysis_data",
+    "Linux":   r"/home/user/analysis_data"
+},
+
+# パラメータ設定
 
 # 外れ値の設定
 REMOVE_OUTLIERS = True           # 外れ値を除去するか (True / False)
@@ -50,112 +65,15 @@ USE_LOGLOG_PLOT = True           # MSDグラフを両対数プロットにする
 FIG_SIZE = (10,5) #描画サイズを指定
 AUTO_SAVE = False #グラフの自動保存設定 (True / False)
 
-
-
-# -----------------------------------------------------------------------------
-# ◆◆◆ 処理の実行 ◆◆◆
-# -----------------------------------------------------------------------------
-def main():
-    """設定に基づいて各分析処理を実行するメイン関数"""
-    print("=== 分析処理を開始します ===")
-    # --- 0. 入力ファイルが存在するかチェック ---
-    if not os.path.exists(INPUT_POSITION_CSV):
-        print(f"エラー: 位置ファイル '{INPUT_POSITION_CSV}' が見つかりません。")
-        print("→ すべての処理を中止します。")
-        return
-    
-    # --- 1. 速度の計算 ---
-    if os.path.exists(INPUT_VELOCITY_CSV):
-        print(f"速度ファイルが既に存在しているため、速度計算をスキップします。")
-        RUN_CALCULATE_VELOCITY = False
-        print("\n--- [スキップ] 1. 速度計算 ---")
-    else:
-        RUN_CALCULATE_VELOCITY = True
-        print("\n--- [実行中] 1. 速度計算 ---")
-        calculate_velocity.calculate_velocity(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV)
-
-    # --- 2. 時間ごとの速度変化グラフの描画 ---
-    if RUN_PLOT_SPEED_OVER_TIME:
-        plot_speed_over_time.plot_speed_over_time(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
-    else:
-        print("\n--- [スキップ] 2. 速度変化グラフ描画 ---")
-        pass
-
-    # --- 3. 速度分布グラフの描画 ---
-    if RUN_PLOT_VELOCITY_DISTRIBUTION:
-        print("\n--- [実行中] 3. 速度分布グラフ描画 ---")
-        plot_velocity_distribution.plot_histogram_dashboard(INPUT_VELOCITY_CSV, REMOVE_OUTLIERS, REMOVE_THRESHOLD, VELOCITY_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
-    else:
-        print("\n--- [スキップ] 3. 速度分布グラフ描画 ---")
-        pass
-
-    # --- 4. MSDの計算と描画 ---
-    if RUN_PLOT_MSD:
-        print("\n--- [実行中] 4. MSD計算・描画 ---")
-        df = plot_msd.load_data(INPUT_POSITION_CSV)
-        if df is not None:
-            msd_results = plot_msd.calculate_msd_from_wide_format(INPUT_POSITION_CSV, max_lag_ratio=0.5)
-            plot_msd.plot_msd(msd_results, INPUT_POSITION_CSV, USE_LOGLOG_PLOT, FIG_SIZE, AUTO_SAVE)
-    else:
-        print("\n--- [スキップ] 4. MSD計算・描画 ---")
-        pass
-
-
-    # --- 5. 個体感ネットワークの計算と描画 ---
-    if RUN_PLOT_SOCIAL_NETWORK:
-        print("\n--- [実行中] 5. 個体ネットワーク描画 ---")
-        plot_social_network.plot_social_network(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE)
-    else:
-        print("\n--- [スキップ] 5. 個体ネットワーク描画 ---")
-        pass
-
-    # --- 6. 個体間距離の時間変化グラフの描画 ---
-    if RUN_PLOT_DISTANCE_OVER_TIME:
-        print("\n--- [実行中] 6. 個体間距離時間変化グラフ描画 ---")
-        plot_distance_over_time.plot_distance_over_time(INPUT_POSITION_CSV, CONTACT_THRESHOLD, USE_LOG_SCALE, FIG_SIZE, AUTO_SAVE)
-    else:
-        print("\n--- [スキップ] 6. 個体間距離時間変化グラフ描画 ---")
-        pass
-
-    # --- 7. COSの値の時間変化グラフの描画 ---
-    if RUN_PLOT_COS_OVER_TIME:
-        print("\n--- [実行中] 7. COSの値の時間変化グラフの描画 ---")
-        plot_COS_Over_Time.plot_cos_over_time(INPUT_POSITION_CSV, INPUT_VELOCITY_CSV, VELOCITY_THRESHOLD, CONTACT_THRESHOLD, REMOVE_OUTLIERS, FIG_SIZE, AUTO_SAVE)
-    else:
-        print("\n--- [スキップ] 7. COSの値の時間変化グラフの描画 ---")
-
-    # --- 8. 接触頻度のパワースペクトルグラフの描画 ---
-    if RUN_PLOT_CONTACT_SPECTRUM:
-        print("\n--- [実行中] 8. 接触頻度のパワースペクトルグラフの描画 ---")
-        plot_Contact_Spectrum.plot_contact_spectrum(INPUT_POSITION_CSV, CONTACT_THRESHOLD, FIG_SIZE, AUTO_SAVE, USE_LOGLOG_PLOT)
-    else:
-        print("\n--- [スキップ] 8. 接触頻度のパワースペクトルグラフの描画 ---")
-
-if __name__ == '__main__':
-    # INPUT_CSVS リストが定義されていることを確認
-    if 'INPUT_CSVS' not in globals() or not isinstance(INPUT_CSVS, list):
-        print("エラー: 'INPUT_CSVS' リストが main_runner.py の先頭で定義されていません。")
-        print("例: INPUT_CSVS = [\"20251105_01\", \"20251105_02\"]")
-    else:
-        print(f"合計で {len(INPUT_CSVS)} 件のデータセットを処理します。")
-
-        for i, base_name in enumerate(INPUT_CSVS):
-            #    base_name を使って上書きする
-            INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{base_name}/{base_name}-position.csv"
-            INPUT_VELOCITY_CSV = f"/Volumes/100.108.13.8/analysis_data/{base_name}/{base_name}-position_velocity.csv"
-
-            # 位置ファイル (ファイル) が存在するかをチェック
-            if os.path.exists(INPUT_POSITION_CSV):
-                print(f"データセット '{base_name}' の処理を開始します。")
-                try:
-                    # グローバル変数が更新されたので、main() を呼び出す
-                    main()
-                except Exception as e:
-                    print(f"エラー: データセット '{base_name}' の処理中に予期せぬエラーが発生しました: {e}")
-                    print("次のデータセットの処理に進みます。")
-            else:
-                # 5. 修正: 正しいエラーメッセージ
-                print(f"エラー: 指定された位置ファイル '{INPUT_POSITION_CSV}' が存在しません。")
-                print("次のデータセットの処理に進みます。")
-
-        print("\nすべてのデータセットの処理が完了しました。")
+# ユーティリティ関数
+def get_path(COLONIES, PATHS):
+    """指定されたコロニータイプと環境に基づいて、位置ファイルと速度ファイルのパスを取得する関数"""
+    # パスの取得
+    PATHS = PATHS["Mac"]
+    base_path = PATHS
+    # パスの生成
+    input_position_path = os.path.join(base_path, COLONIES, f"{COLONIES}-position.csv")
+    input_velocity_path = os.path.join(base_path, COLONIES, f"{COLONIES}-position_velocity.csv")
+    output_path = os.path.join(base_path, COLONIES, f"{COLONIES}-output.csv")
+    print(f"Input Position Path: {input_position_path}, Input Velocity Path: {input_velocity_path}, Output Path: {output_path}")
+    return input_position_path, input_velocity_path, output_path

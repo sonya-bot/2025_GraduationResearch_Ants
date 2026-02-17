@@ -67,7 +67,8 @@ def calculate_velocity(input_filename, output_filename):
 if __name__ == '__main__':
     # ◆◆◆ 設定 ◆◆◆
     # INPUT_CSV = "d:/analysis_data/20251016_02/20251016_02-position.csv"
-    INPUT_CSV = "/Volumes/100.108.13.8/analysis_data/20251105_02/20251105_02-position.csv" # Macでの実行時
-    OUTPUT_CSV = f'{INPUT_CSV.replace("position", "position_velocity")}'
+    INPUT_CSV = "20251128_01"
+    INPUT_POSITION_CSV = f"/Volumes/100.108.13.8/analysis_data/{INPUT_CSV}/{INPUT_CSV}-position.csv"
+    OUTPUT_CSV = f'{INPUT_POSITION_CSV.replace("position", "position_velocity")}'
     
-    calculate_velocity(INPUT_CSV, OUTPUT_CSV)
+    calculate_velocity(INPUT_POSITION_CSV, OUTPUT_CSV)
